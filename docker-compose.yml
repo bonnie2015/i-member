@@ -1,0 +1,95 @@
+services:
+  redis:
+    image: redis/redis-stack:latest
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_INSIGHT_PORT:-8001}:8001"
+    volumes:
+      - redis_data:/data
+    environment:
+      - REDIS_ARGS=--appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - imember-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        - APT_MIRROR=${APT_MIRROR}
+        - PIP_INDEX_URL=${PIP_INDEX_URL}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - imember-network
+
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        - APT_MIRROR=${APT_MIRROR}
+        - PIP_INDEX_URL=${PIP_INDEX_URL}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+    volumes:
+      - ./backend/app:/app/app:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - imember-network
+    command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app/app" ]
+    profiles:
+      - dev
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - PORT=3000
+    volumes:
+      - ./frontend:/app
+    networks:
+      - imember-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  redis_data:
+
+
+networks:
+  imember-network:
+    driver: bridge

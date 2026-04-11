@@ -1,0 +1,28 @@
+【Reflect 阶段】
+用户请求：{user_input}
+执行目标：{target}
+已执行步骤结果：
+{results}
+
+根据以上结果，判断当前执行状态，选择下一步动作，并输出最终判断。严格输出 JSON，不要输出任何解释。
+
+## 动作说明
+
+- continue：当前步骤成功，还有后续步骤待执行，继续执行。
+- replan：执行结果表明原有计划不可行，需要重新规划。
+- retry：当前步骤执行失败（非永久性错误，如超时、临时异常），可以重试当前步骤。
+- done：所有步骤执行完毕，用户需求已满足。
+- fail：无法完成任务（超过重试次数、永久性错误等）。
+
+## 输出格式
+
+{{
+  "action": "continue | replan | retry | done | fail",
+  "satisfied": true,
+  "reply": "对用户的最终回复（仅 done/fail 时填写，其余可为 null）",
+  "reason": "判断依据（简洁）",
+  "missing": []
+}}
+
+- satisfied=false 时，missing 列出还缺少的信息或步骤。
+- 仅输出 JSON：

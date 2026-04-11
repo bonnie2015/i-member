@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Member Ops Agent - 智能客服</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🤖 Member Ops Agent</h1>
+            <p>智能客服助手 - 基于AI的会员运营服务</p>
+        </header>
+
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot-message">
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="sender">🤖 智能助手</span>
+                            <span class="timestamp" id="currentTime"></span>
+                        </div>
+                        <div class="message-text">
+                            您好！我是您的智能客服助手，可以帮您处理：
+                            <ul>
+                                <li>📋 工单服务（投诉、退换货、物流跟进）</li>
+                                <li>❓ 问答咨询（会员政策、优惠信息）</li>
+                                <li>🛍️ 商品推荐（新品、商品活动）</li>
+                            </ul>
+                            请告诉我您需要什么帮助？
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <input type="text" id="messageInput" placeholder="请输入您的问题..." maxlength="500">
+                    <button id="sendButton" class="send-button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="input-info">
+                    <span id="charCount">0/500</span>
+                    <span class="confidence-info" id="confidenceInfo" style="display: none;">
+                        意图置信度: <span id="confidenceScore">0</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-dot" id="connectionStatus"></span>
+                <span>连接状态</span>
+            </div>
+            <div class="status-item">
+                <span class="status-text" id="modelStatus">DeepSeek R1 1.5B</span>
+                <span>AI模型</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

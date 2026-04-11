@@ -1,0 +1,46 @@
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.api.v1.endpoints import chat
+from app.config.config import settings
+from app.config.logging import get_logger
+import app.workflow.graph as graph_module
+from app.memory.redis_checkpointer import create_checkpointer
+from app.utils.skills_utils import build_skills_snapshot
+
+logger = get_logger("main")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 启动：生成 skills 快照
+    build_skills_snapshot()
+    # 启动：初始化 checkpointer（含 Redis 索引创建）并编译工作流
+    checkpointer = await create_checkpointer()
+    graph_module.workflow = graph_module.create_workflow(checkpointer)
+    logger.info("Workflow initialized")
+    yield
+    # 关闭：暂无需清理
+
+
+app = FastAPI(
+    title="Member-Ops Agent",
+    description="全渠道会员智能运营系统",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
