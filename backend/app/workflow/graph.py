@@ -86,13 +86,14 @@ async def run_member_ops_agent(
         thread_id = thread_id or f"{user_id}_{uuid.uuid4().hex[:8]}"
         config = {"configurable": {"thread_id": thread_id}}
 
+        saved_state = None
         try:
             saved_state = await workflow.aget_state(config)
-            has_interrupt = bool(saved_state) and (saved_state.tasks or saved_state.next)
+            has_interrupt = bool(saved_state) and bool(saved_state.tasks or saved_state.next)
             logger.info(f"has_interrupt: {has_interrupt}")
-        except:
+        except Exception:
             has_interrupt = False
-            logger.info(f"except has_interrupt: {has_interrupt}")
+            logger.info("except has_interrupt: False")
         logger.info(f"Checking for interrupt - Thread: {thread_id}, saved_state: {saved_state}, Has Interrupt: {has_interrupt}")
 
         if has_interrupt:

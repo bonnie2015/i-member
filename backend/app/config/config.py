@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     # DeepSeek 配置
     deepseek_api_key: Optional[str] = None
 
+    # SCRM 接口配置
+    scrm_base_url: str = "http://bonnie-local.com"
+    scrm_access_token: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

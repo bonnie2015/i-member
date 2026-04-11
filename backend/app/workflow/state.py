@@ -50,3 +50,6 @@ class TicketState(AgentState, total=False):
     clarify_count: int                         # 追问轮次计数（上限 5）
     loop_count: int                            # 整体规划-执行循环次数（防止无限循环）
     collected_info: Optional[Dict[str, Any]]  # 追问过程中收集到的信息
+    reflect_action: Optional[str]             # reflect 节点的决策结果
+    has_other_intent: bool                     # plan 识别到非工单意图
+    user_confirmed: bool                       # 用户已完成写操作确认，replan 后跳过再次 confirm

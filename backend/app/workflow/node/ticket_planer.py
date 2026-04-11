@@ -32,6 +32,11 @@ MAX_LOOP = 8      # 规划-执行循环上限
 # Pydantic 结构化输出模型
 # ---------------------------------------------------------------------------
 
+class ClarifyItem(BaseModel):
+    question: str
+    required: bool = True   # True=必须回答才能继续；False=兜底，可跳过
+
+
 class PlanStep(BaseModel):
     step: int
     skill: Optional[str] = None
@@ -43,7 +48,8 @@ class PlanStep(BaseModel):
 class PlanOutput(BaseModel):
     target: str
     need_more_info: bool
-    clarify_question: Optional[str] = None
+    clarify_question: Optional[str] = None      # 向用户展示的完整追问文本（由 clarify_items 合并而来）
+    clarify_items: List[ClarifyItem] = []       # 结构化追问列表，区分 required/optional
     has_other_intent: bool = False
     steps: List[PlanStep]
     need_confirm: bool
