@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from app.config.logging import get_logger
-from app.service.recognize_intent import recognize_intent, recognize_router_guard
+from app.service.recognize_intent import recognize_router
 from app.workflow.state import AgentState
 
 logger = get_logger("router")
@@ -42,39 +42,40 @@ async def router_node(state: AgentState):
     user_context = state.get("user_context") or {}
     last_service = user_context.get("last_service") or {}
     last_intent = str(last_service.get("intent", "")).strip()
+    is_fresh_turn = len(messages) == 1
 
-    if last_intent in ("ticket", "qa", "recommend"):
+    eligible_last_service = {}
+    if is_fresh_turn and last_intent in ("ticket", "qa", "recommend"):
         created_at = _parse_iso_datetime(last_service.get("created_at", ""))
         within_window = not created_at or (
             datetime.now(timezone.utc) - created_at <= timedelta(minutes=_FOLLOW_UP_WINDOW_MINUTES)
         )
         if within_window:
-            guard = await recognize_router_guard(user_input=user_input, last_service=last_service)
-            is_continuous = bool(guard.is_continuous)
-
-            if guard.is_continuous:
-                if guard.is_simple_ack:
-                    return {
-                        "is_direct_reply": True,
-                        "is_continuous": is_continuous,
-                        "intent": guard.intent or last_intent or "qa",
-                        "reason": guard.reason or "用户对最近一轮服务进行了简单收口回复，直接短答即可",
-                        "final_reply": guard.direct_reply or "好的，这边先帮您记下了。您后面还有需要，随时叫我就行。",
-                    }
-
-                return {
-                    "is_direct_reply": False,
-                    "is_continuous": is_continuous,
-                    "intent": guard.intent or last_intent,
-                    "service_entry_message": user_input,
-                    "reason": guard.reason or "用户当前发言与最近一轮服务存在连续性，优先沿用上一轮服务意图",
-                }
+            eligible_last_service = last_service
 
     try:
-        result = await recognize_intent(user_input)
+        result = await recognize_router(
+            messages=messages,
+            last_service=eligible_last_service,
+        )
+
+        if not eligible_last_service or not is_fresh_turn:
+            result.is_continuous = False
+            result.is_simple_ack = False
+            result.direct_reply = None
+
+        if result.is_continuous and result.is_simple_ack:
+            return {
+                "is_direct_reply": True,
+                "is_continuous": True,
+                "intent": result.intent or last_intent or "qa",
+                "reason": result.reason or "用户对最近一轮服务进行了简单收口回复，直接短答即可",
+                "final_reply": result.direct_reply or "好的，这边先帮您记下了。您后面还有需要，随时叫我就行。",
+            }
+
         return {
             "is_direct_reply": False,
-            "is_continuous": False,
+            "is_continuous": bool(result.is_continuous),
             "intent": result.intent,
             "service_entry_message": user_input,
             "reason": result.reason,

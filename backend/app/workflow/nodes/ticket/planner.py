@@ -1,11 +1,10 @@
 """
 ticket_planner.py
 
-根据最新 planner prompt 与 skill 约束生成完整 TicketPlan。
+根据 planner prompt 与已收敛 scene/skill 生成 TicketPlan。
 特点：
-- 运行时直接注入统一的 interaction 协议
-- 允许模型按需读取 1 个最相关的业务 skill
-- 输出结构化 TicketPlan，并规范化为 executor 可直接消费的 steps/slost
+- 依赖前置 scene guard 提供已选择的业务 skill
+- 输出 5 步以内的宏观 TicketPlan，供 executor 做细执行
 - 重规划时保留连续成功前缀，避免覆盖已完成步骤
 """
 
@@ -16,32 +15,28 @@ import re
 from typing import Any, Dict, List, Literal, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.agents.llm.llm_factory import get_remote_llm
 from app.agents.prompts.prompt_loader import load_prompt
-from app.agents.skills.registry import load_skills_snapshot
-from app.agents.tools.read_tool import read_file
+from app.agents.tools import TOOL_SPECS
+from app.agents.tools.scrm_tools import build_tool_summary_text
 from app.config.logging import get_logger
-from app.models.interaction import InteractionType, build_interaction_requirements_text
-from app.workflow.state import TicketNextAction, TicketState
+from app.workflow.state import TicketNextAction, TicketState, normalize_current_step_index
 
 logger = get_logger("ticket_planner")
 
 TICKET_PLAN_PROMPT_FILE = "ticket/plan.txt"
 MAX_REPLAN_COUNT = 3
+MAX_PLAN_STEPS = 5
 _STEP_ID_PATTERN = re.compile(r"^step_(\d+)$", flags=re.I)
-
-
+_VALID_TOOL_NAMES = set(TOOL_SPECS.keys())
 class TicketPlanStep(BaseModel):
     id: str
-    type: Literal["ask_user", "tool", "interacting"]
-    purpose: str
-    tool_name: Optional[str] = None
-    interaction_type: Optional[InteractionType] = None
-    reply: Optional[str] = None
+    goal: str
     completion_signal: str = ""
     target_slots: List[str] = Field(default_factory=list)
+    available_tools: List[str] = Field(default_factory=list)
     is_success: bool = False
     result: Any = Field(default_factory=dict)
 
@@ -57,6 +52,15 @@ class TicketPlanStep(BaseModel):
     @field_validator("target_slots", mode="before")
     @classmethod
     def normalize_target_slots(cls, value: Any) -> List[str]:
+        return cls._normalize_string_list(value)
+
+    @field_validator("available_tools", mode="before")
+    @classmethod
+    def normalize_available_tools(cls, value: Any) -> List[str]:
+        return cls._normalize_string_list(value)
+
+    @classmethod
+    def _normalize_string_list(cls, value: Any) -> List[str]:
         if value is None:
             return []
         if isinstance(value, str):
@@ -75,6 +79,13 @@ class TicketPlanStep(BaseModel):
                 normalized.append(key)
         return normalized
 
+    @model_validator(mode="after")
+    def validate_step_structure(self) -> "TicketPlanStep":
+        self.available_tools = [
+            tool_name for tool_name in self.available_tools if tool_name in _VALID_TOOL_NAMES
+        ]
+        return self
+
 
 class TicketPlan(BaseModel):
     current_goal: str
@@ -82,6 +93,14 @@ class TicketPlan(BaseModel):
     slots: Dict[str, Any] = Field(default_factory=dict)
     expected_slots: List[str] = Field(default_factory=list)
     steps: List[TicketPlanStep] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_macro_plan(self) -> "TicketPlan":
+        if len(self.steps) > MAX_PLAN_STEPS:
+            raise ValueError(f"ticket plan must contain at most {MAX_PLAN_STEPS} steps")
+        if self.ticket_scene == "others" and self.steps:
+            raise ValueError("ticket_scene=others must not contain executable steps")
+        return self
 
 
 def _plan_log_view(plan_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -93,12 +112,10 @@ def _plan_log_view(plan_data: Dict[str, Any]) -> Dict[str, Any]:
         "steps": [
             {
                 "id": step.get("id"),
-                "type": step.get("type"),
-                "tool_name": step.get("tool_name"),
-                "purpose": step.get("purpose"),
-                "interaction_type": step.get("interaction_type"),
-                "reply": step.get("reply"),
+                "goal": step.get("goal"),
+                "completion_signal": step.get("completion_signal"),
                 "target_slots": step.get("target_slots"),
+                "available_tools": step.get("available_tools"),
                 "is_success": step.get("is_success"),
                 "result": step.get("result"),
             }
@@ -156,81 +173,53 @@ def _normalize_slot_placeholders(value: Any) -> Any:
     return value
 
 
+def _normalize_plan_payload(payload: Any) -> Any:
+    normalized = _normalize_slot_placeholders(payload)
+    if isinstance(normalized, dict) and normalized.get("ticket_scene") == "others":
+        normalized = {
+            **normalized,
+            "expected_slots": [],
+            "steps": [],
+        }
+    return normalized
+
+
 async def _plain_llm_for_plan(messages: List[Any]) -> TicketPlan:
     response = await get_remote_llm(role="ticket").ainvoke(messages)
     raw_text = _extract_text_content(getattr(response, "content", ""))
     json_text = _extract_json_object(raw_text)
     payload = json.loads(json_text)
-    normalized_payload = _normalize_slot_placeholders(payload)
+    normalized_payload = _normalize_plan_payload(payload)
     logger.info(
-        "[plan_node] plain llm raw response=%s",
-        json.dumps(normalized_payload, ensure_ascii=False, indent=2),
+        "[plan_node] plain llm raw response received ticket_scene=%s step_count=%s",
+        (normalized_payload or {}).get("ticket_scene"),
+        len((normalized_payload or {}).get("steps") or []),
     )
     return TicketPlan.model_validate(normalized_payload)
 
-async def _load_skill_content(prompt: str, conversation_messages: List[Any], snapshot: str) -> str:
-    tool_llm = get_remote_llm(role="ticket").bind_tools([read_file])
-    llm_messages: List[Any] = [SystemMessage(content=prompt)]
-    llm_messages.extend(conversation_messages)
-    llm_tool_response = await tool_llm.ainvoke(llm_messages)
-    tool_calls = getattr(llm_tool_response, "tool_calls", None) or []
-
-    loaded_skill: str = ""
-    chosen_tool_call: Dict[str, Any] | None = None
-    for tool_call in tool_calls:
-        tool_name = str(tool_call.get("name") or "").strip()
-        if tool_name != "read_file":
-            continue
-        chosen_tool_call = dict(tool_call)
-        tool_args = tool_call.get("args") or {}
-        try:
-            loaded_skill = str(read_file.invoke(tool_args))
-        except Exception as exc:
-            loaded_skill = f"read_file failed: {exc}"
-        break
-
-    if not loaded_skill:
-        logger.info(
-            "[plan_node] skill loading finished selected_skill=none tool_call=%s",
-            json.dumps(chosen_tool_call or {}, ensure_ascii=False),
-        )
-        return snapshot
-
-    selected_skill_text = loaded_skill.strip()
-    logger.info(
-        "[plan_node] skill loading finished selected_skill=%s",
-        json.dumps(chosen_tool_call or {}, ensure_ascii=False),
-    )
-    return selected_skill_text
-
-
 async def _invoke_llm_for_plan(state: TicketState) -> TicketPlan:
-    snapshot = load_skills_snapshot()
     current_steps = list(state.get("steps") or [])
     ticket_plan_state = (
         ""
         if not current_steps
         else json.dumps(_ticket_plan_state(state), ensure_ascii=False, indent=2)
     )
+    selected_skill_content = str(state.get("selected_skill_content") or "").strip()
     prompt_template = load_prompt(TICKET_PLAN_PROMPT_FILE)
     prompt = prompt_template.format(
         user_id=state.get("user_id", "unknown"),
-        skills=snapshot,
-        interaction_requirements=build_interaction_requirements_text(),
+        ticket_scene=state.get("ticket_scene") or "others",
+        selected_skill_content=selected_skill_content or "[no selected business skill]",
+        tool_summary=build_tool_summary_text(),
         ticket_plan_state=ticket_plan_state,
         current_step_index=int(state.get("current_step_index", 0)),
     )
     conversation_messages = list(state.get("messages") or [])
-    logger.info("[plan_node] start skill loading current_step_index=%s", int(state.get("current_step_index", 0)))
-    merged_skills = await _load_skill_content(prompt, conversation_messages, snapshot)
-    prompt = prompt_template.format(
-        user_id=state.get("user_id", "unknown"),
-        skills=merged_skills,
-        interaction_requirements=build_interaction_requirements_text(),
-        ticket_plan_state=ticket_plan_state,
-        current_step_index=int(state.get("current_step_index", 0)),
+    logger.info(
+        "[plan_node] use preselected skill ticket_scene=%s skill_present=%s",
+        state.get("ticket_scene") or "others",
+        bool(selected_skill_content),
     )
-    logger.info("[plan_node] planner prompt after skill loading=%s", prompt)
     messages: List[Any] = [SystemMessage(content=prompt)]
     messages.extend(conversation_messages)
     logger.info("[plan_node] start plain json output")
@@ -240,11 +229,16 @@ async def _invoke_llm_for_plan(state: TicketState) -> TicketPlan:
 
 
 async def plan_node(state: TicketState) -> Dict[str, Any]:
+    current_steps = list(state.get("steps") or [])
+    normalized_index = normalize_current_step_index(
+        current_steps,
+        int(state.get("current_step_index", 0)),
+    )
     replan_count = int(state.get("replan_count", 0))
     if replan_count >= MAX_REPLAN_COUNT:
         logger.warning("[plan_node] replan limit reached: %s", replan_count)
         return {
-            "next_action": TicketNextAction.FINALIZE,
+            "next_action": TicketNextAction.END,
             "final_status": "failed",
             "final_reason": "replan_limit_reached",
         }
@@ -254,7 +248,7 @@ async def plan_node(state: TicketState) -> Dict[str, Any]:
     except Exception as exc:
         logger.exception("[plan_node] plan generation failed: %s", exc)
         return {
-            "next_action": TicketNextAction.FINALIZE,
+            "next_action": TicketNextAction.END,
             "final_status": "failed",
             "final_reason": "plan_generation_failed",
         }
@@ -266,7 +260,7 @@ async def plan_node(state: TicketState) -> Dict[str, Any]:
     ticket_scene = plan_data["ticket_scene"]
     slots = plan_data["slots"]
     expected_slots = list(plan_data.get("expected_slots") or [])
-    current_step_index = int(state.get("current_step_index", 0))
+    current_step_index = normalized_index if normalized_index is not None else int(state.get("current_step_index", 0))
 
     if ticket_scene == "others":
         return {
@@ -276,7 +270,7 @@ async def plan_node(state: TicketState) -> Dict[str, Any]:
             "steps": steps,
             "expected_slots": expected_slots,
             "current_step_index": current_step_index,
-            "next_action": TicketNextAction.FINALIZE,
+            "next_action": TicketNextAction.END,
             "final_status": "failed",
             "final_reason": "out_of_scope",
         }
@@ -289,7 +283,7 @@ async def plan_node(state: TicketState) -> Dict[str, Any]:
             "steps": [],
             "expected_slots": expected_slots,
             "current_step_index": current_step_index,
-            "next_action": TicketNextAction.FINALIZE,
+            "next_action": TicketNextAction.END,
             "final_status": "failed",
             "final_reason": "no_executable_plan",
         }

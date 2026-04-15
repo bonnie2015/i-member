@@ -16,16 +16,7 @@ _SCRM_RATE_LIMIT_PER_MIN = 30
 
 
 def _build_base_url() -> str:
-    return settings.scrm_base_url.rstrip("/")
-
-
-def _build_api_prefix() -> str:
-    prefix = str(settings.scrm_api_prefix or "").strip()
-    if not prefix:
-        return ""
-    if not prefix.startswith("/"):
-        prefix = f"/{prefix}"
-    return prefix.rstrip("/")
+    return settings.scrm_url.rstrip("/")
 
 
 def _build_headers() -> Dict[str, str]:
@@ -80,7 +71,7 @@ async def call_scrm_endpoint(
     timeout_s: float = 10.0,
 ) -> Dict[str, Any]:
     normalized_path = path if path.startswith("/") else f"/{path}"
-    url = f"{_build_base_url()}{_build_api_prefix()}{normalized_path}"
+    url = f"{_build_base_url()}{normalized_path}"
     headers = _build_headers()
     await _check_rate_limit()
     async with httpx.AsyncClient(timeout=timeout_s) as client:
