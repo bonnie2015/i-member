@@ -3,65 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Member Ops Agent - 智能客服</title>
+    <title>品牌伙伴 · 智能客服</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <h1>🤖 Member Ops Agent</h1>
-            <p>智能客服助手 - 基于AI的会员运营服务</p>
-        </header>
+    <div class="app">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-avatar">B</div>
+                <div class="brand-info">
+                    <span class="brand-name">品牌伙伴</span>
+                    <span class="brand-tag">会员专属服务</span>
+                </div>
+            </div>
 
-        <div class="chat-container">
-            <div class="chat-messages" id="chatMessages">
-                <div class="message bot-message">
-                    <div class="message-content">
-                        <div class="message-header">
-                            <span class="sender">🤖 智能助手</span>
-                            <span class="timestamp" id="currentTime"></span>
-                        </div>
-                        <div class="message-text">
-                            您好！我是您的智能客服助手，可以帮您处理：
-                            <ul>
-                                <li>📋 工单服务（投诉、退换货、物流跟进）</li>
-                                <li>❓ 问答咨询（会员政策、优惠信息）</li>
-                                <li>🛍️ 商品推荐（新品、商品活动）</li>
-                            </ul>
-                            请告诉我您需要什么帮助？
-                        </div>
+            <div class="member-card" id="memberCard">
+                <div class="member-level" id="memberLevel">加载中...</div>
+                <div class="member-points" id="memberPoints"></div>
+                <div class="member-name" id="memberName"></div>
+            </div>
+
+            <nav class="quick-actions">
+                <p class="nav-label">快捷服务</p>
+                <button class="quick-btn" data-msg="我想退货">退换货申请</button>
+                <button class="quick-btn" data-msg="帮我升级会员">会员升级</button>
+                <button class="quick-btn" data-msg="我要申请折扣权益">权益申请</button>
+                <button class="quick-btn" data-msg="我要投诉">提交投诉</button>
+                <button class="quick-btn" data-msg="积分怎么兑换？">积分规则</button>
+            </nav>
+
+            <div class="status-indicator">
+                <span class="dot" id="statusDot"></span>
+                <span id="statusText">连接中...</span>
+            </div>
+        </aside>
+
+        <!-- 主聊天区 -->
+        <main class="chat-main">
+            <header class="chat-header">
+                <div class="chat-title">
+                    <span class="chat-title-name">智能客服助手</span>
+                    <span class="chat-title-sub" id="threadLabel"></span>
+                </div>
+                <button class="new-chat-btn" id="newChatBtn" title="新对话">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    新对话
+                </button>
+            </header>
+
+            <div class="messages" id="messages">
+                <div class="welcome-msg">
+                    <div class="welcome-avatar">B</div>
+                    <div class="welcome-text">
+                        <p>您好！我是您的专属品牌伙伴 👋</p>
+                        <p>有什么我可以帮您的吗？退换货、权益升级、商品咨询都可以找我～</p>
                     </div>
                 </div>
             </div>
 
-            <div class="input-container">
-                <div class="input-wrapper">
-                    <input type="text" id="messageInput" placeholder="请输入您的问题..." maxlength="500">
-                    <button id="sendButton" class="send-button">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                        </svg>
-                    </button>
+            <!-- 交互区：追问 / 确认 / 选择 / 普通输入 -->
+            <div class="interaction-area" id="interactionArea">
+                <!-- 选择面板（select） -->
+                <div class="action-panel select-panel hidden" id="selectPanel">
+                    <div class="action-panel-label" id="selectLabel"></div>
+                    <div class="option-cards" id="optionCards"></div>
                 </div>
-                <div class="input-info">
-                    <span id="charCount">0/500</span>
-                    <span class="confidence-info" id="confidenceInfo" style="display: none;">
-                        意图置信度: <span id="confidenceScore">0</span>
-                    </span>
-                </div>
-            </div>
-        </div>
 
-        <div class="status-bar">
-            <div class="status-item">
-                <span class="status-dot" id="connectionStatus"></span>
-                <span>连接状态</span>
+                <!-- 普通输入 -->
+                <div class="input-panel" id="inputPanel">
+                    <div class="input-row">
+                        <textarea id="messageInput" rows="1" placeholder="请输入您的问题..." maxlength="500"></textarea>
+                        <button id="sendBtn" class="send-btn" disabled>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="input-footer">
+                        <span id="charCount">0 / 500</span>
+                        <span class="hint" id="inputHint"></span>
+                    </div>
+                </div>
             </div>
-            <div class="status-item">
-                <span class="status-text" id="modelStatus">DeepSeek R1 1.5B</span>
-                <span>AI模型</span>
-            </div>
-        </div>
+        </main>
     </div>
 
     <script src="script.js"></script>

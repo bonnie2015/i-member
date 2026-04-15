@@ -1,10 +1,17 @@
 from typing import Literal, Optional, Dict, List
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import BaseModel
 from pathlib import Path
 import json
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
     # 基础配置
     debug: bool = False
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
@@ -20,13 +27,13 @@ class Settings(BaseSettings):
     deepseek_api_key: Optional[str] = None
 
     # SCRM 接口配置
-    scrm_base_url: str = "http://bonnie-local.com"
-    scrm_access_token: str = ""
+    scrm_base_url: str = "http://localhost:8000"
+    scrm_api_prefix: str = ""
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    # JWT 鉴权
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_issuer: str = "member-ops-agent"
+    jwt_clock_skew_seconds: int = 30
 
 
 settings = Settings()

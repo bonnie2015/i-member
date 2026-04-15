@@ -1,1 +1,1 @@
-"""AI 智能体包."""
+"""Workflow packages for the main graph and subgraphs."""

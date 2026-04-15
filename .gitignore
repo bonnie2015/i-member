@@ -40,7 +40,9 @@ env/
 tests/
 test/
 
-doc/
-
+docs/
+logs/
 .trae/
 .DS_Store
+.claude/
+skills-snapshot.md

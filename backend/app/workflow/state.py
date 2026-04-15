@@ -1,55 +1,56 @@
+from enum import Enum
 from typing import List, Dict, Any, Optional, Annotated, Literal, TypedDict
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
 
+class TicketNextAction(str, Enum):
+    PLAN = "plan"
+    EXECUTOR = "executor"
+    REFLECT = "reflect"
+    FINALIZE = "finalize"
+
+
+TicketScene = Literal["refund", "change", "quality", "complain", "equity", "others"]
+
 
 class AgentState(TypedDict, total=False):
-    # 会话身份
+    # 基础信息
     user_id: str
     thread_id: str
     channel: Literal["wechat", "app", "web", "jd", "tmall", "douyin", "api"]
-
-    # 对话消息（add_messages reducer 自动追加）
     messages: Annotated[List[BaseMessage], add_messages]
     final_reply: Optional[str]
 
-    # 路由元数据（不参与流控，仅供 post_process 使用）
+    # 意图路由
     intent: Optional[Literal["ticket", "qa", "recommend"]]
     reason: Optional[str]
-
-    # 多意图队列（最多3个，post_process 消费）
-    intent_queue: List[str]
+    is_continuous: bool
+    is_direct_reply: bool
 
     # QA 专用
     qa_turn_count: int
     service_entry_message: Optional[str]  # 首条消息，连贯性检测基准
 
-    # 情绪与任务
+    # 情绪
     emotion_score: Optional[float]  # 0=极负面，1=极正面
-    pending_task: Optional[Dict[str, Any]]  # 仅 ticket / restock 两类
+
+    # 用户上下文（服务前通过接口预加载）
+    user_context: Optional[Dict[str, Any]]  # 包含 profile + level + tags + long_term_memories
 
     # Token 监控（各节点累加）
     token_usage_total: int
 
 
 class TicketState(AgentState, total=False):
-    ticket_type: Optional[Literal["return_exchange", "damage_quality", "complaint", "rights_apply"]]
-    reply_type: Optional[Literal["confirm", "question", "complete"]]
-    ticket_id: Optional[str]
-    department: Optional[str]
-    info_complete: bool
-    retry_count: int
-    force_end: bool  # token 熔断标记
 
-    task_context: Optional[Dict[str, Any]]  # 当前执行任务需要的动态信息数据
+    ticket_scene: Optional[TicketScene]
+    current_goal: Optional[str]
+    steps: List[Dict[str, Any]]
+    current_step_index: int  # 当前停留的步骤索引：executor 执行它；失败时保持；继续下一步时才推进
+    slots: Optional[Dict[str, Any]]
+    expected_slots: List[str]  # 本轮计划全程预期收集的槽位 key 聚合（所有步骤 target_slots 的并集）
 
-    # Plan-and-Execute-Reflect 循环字段
-    plan: Optional[Dict[str, Any]]            # 当前执行计划（PlanOutput 序列化）
-    current_step: int                          # 当前正在执行的步骤索引
-    execution_results: List[Dict[str, Any]]   # 已执行步骤结果
-    clarify_count: int                         # 追问轮次计数（上限 5）
-    loop_count: int                            # 整体规划-执行循环次数（防止无限循环）
-    collected_info: Optional[Dict[str, Any]]  # 追问过程中收集到的信息
-    reflect_action: Optional[str]             # reflect 节点的决策结果
-    has_other_intent: bool                     # plan 识别到非工单意图
-    user_confirmed: bool                       # 用户已完成写操作确认，replan 后跳过再次 confirm
+    next_action: Optional[TicketNextAction]
+    replan_count: int
+    final_status: Optional[Literal["success", "failed", "cancelled"]]
+    final_reason: Optional[str]

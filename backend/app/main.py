@@ -4,9 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.endpoints import chat
 from app.config.config import settings
 from app.config.logging import get_logger
+from app.agents.skills.registry import build_skills_snapshot
 import app.workflow.graph as graph_module
-from app.memory.redis_checkpointer import create_checkpointer
-from app.utils.skills_utils import build_skills_snapshot
+from app.agents.memory.redis_checkpointer import create_checkpointer
 
 logger = get_logger("main")
 
