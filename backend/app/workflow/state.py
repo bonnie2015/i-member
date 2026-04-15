@@ -7,7 +7,7 @@ class TicketNextAction(str, Enum):
     PLAN = "plan"
     EXECUTOR = "executor"
     REFLECT = "reflect"
-    FINALIZE = "finalize"
+    END = "end"
 
 
 TicketScene = Literal["refund", "change", "quality", "complain", "equity", "others"]
@@ -45,6 +45,7 @@ class TicketState(AgentState, total=False):
 
     ticket_scene: Optional[TicketScene]
     current_goal: Optional[str]
+    selected_skill_content: Optional[str]
     steps: List[Dict[str, Any]]
     current_step_index: int  # 当前停留的步骤索引：executor 执行它；失败时保持；继续下一步时才推进
     slots: Optional[Dict[str, Any]]
@@ -54,3 +55,30 @@ class TicketState(AgentState, total=False):
     replan_count: int
     final_status: Optional[Literal["success", "failed", "cancelled"]]
     final_reason: Optional[str]
+
+
+def first_pending_step_index(steps: List[Dict[str, Any]]) -> Optional[int]:
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict):
+            continue
+        if not bool(step.get("is_success")):
+            return index
+    return None
+
+
+def normalize_current_step_index(
+    steps: List[Dict[str, Any]],
+    current_step_index: int,
+) -> Optional[int]:
+    if not steps:
+        return None
+
+    if 0 <= current_step_index < len(steps):
+        step = steps[current_step_index]
+        if isinstance(step, dict) and not bool(step.get("is_success")):
+            return current_step_index
+
+    pending_index = first_pending_step_index(steps)
+    if pending_index is not None:
+        return pending_index
+    return None
