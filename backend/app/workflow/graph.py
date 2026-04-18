@@ -1,6 +1,8 @@
 from typing import Any, Dict, List
 
-from langchain_core.messages import HumanMessage
+import json
+
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, StateGraph
 from langgraph.types import Command
 from pydantic import BaseModel, ValidationError
@@ -59,6 +61,17 @@ def has_pending_interrupt(saved_state: Any) -> bool:
     return bool(_list_interrupts(saved_state))
 
 
+def _interrupt_message_content(interrupt_payload: Dict[str, Any] | None) -> str:
+    if not interrupt_payload:
+        return ""
+    reply = str(interrupt_payload.get("reply") or "").strip()
+    interaction = interrupt_payload.get("interaction")
+    if interaction:
+        interaction_text = json.dumps(interaction, ensure_ascii=False)
+        return f"{reply}\n\n[interaction]{interaction_text}"
+    return reply
+
+
 async def _build_invoke_input(
     wf: Any,
     config: Dict[str, Any],
@@ -69,14 +82,22 @@ async def _build_invoke_input(
     log_tag: str,
 ) -> Any:
     interrupted = False
+    interrupt_payload: Dict[str, Any] | None = None
     try:
         saved_state = await wf.aget_state(config)
         interrupted = has_pending_interrupt(saved_state)
+        if interrupted:
+            interrupt_payload = _get_last_interrupt_payload(saved_state)
     except Exception as e:
         logger.warning("[%s] get_state failed: %s", log_tag, e)
 
     if interrupted:
-        return Command(resume=user_message)
+        message_updates = []
+        interrupt_content = _interrupt_message_content(interrupt_payload)
+        if interrupt_content:
+            message_updates.append(AIMessage(content=interrupt_content))
+        message_updates.append(HumanMessage(content=user_message))
+        return Command(update={"messages": message_updates}, resume=user_message)
 
     user_context: Dict[str, Any] = {}
     try:

@@ -19,16 +19,15 @@ class Settings(BaseSettings):
     # Redis配置
     redis_url: str
 
+    # SCRM 服务
+    scrm_url: str = "http://scrm:3658"
+
     # Ollama 配置
     ollama_base_url: str
     ollama_timeout: float = 60.0
 
     # DeepSeek 配置
     deepseek_api_key: Optional[str] = None
-
-    # SCRM 接口配置
-    scrm_base_url: str = "http://localhost:8000"
-    scrm_api_prefix: str = ""
 
     # JWT 鉴权
     jwt_secret_key: str = "change-me-in-production"

@@ -3,15 +3,15 @@ from langgraph.graph import END, StateGraph
 from app.config.logging import get_logger
 from app.workflow.state import TicketNextAction, TicketState
 from app.workflow.nodes.ticket.executor import executor_node
-from app.workflow.nodes.ticket.finalizer import finalizer_node
 from app.workflow.nodes.ticket.planner import plan_node
 from app.workflow.nodes.ticket.reflect import reflect_node
+from app.workflow.nodes.ticket.scene_guard import scene_guard_node
 
 logger = get_logger("ticket_graph")
 
 
 def after_plan(state: TicketState) -> str:
-    return (state.get("next_action") or TicketNextAction.FINALIZE).value
+    return (state.get("next_action") or TicketNextAction.END).value
 
 
 def after_executor(state: TicketState) -> str:
@@ -19,29 +19,32 @@ def after_executor(state: TicketState) -> str:
 
 
 def after_reflect(state: TicketState) -> str:
-    return (state.get("next_action") or TicketNextAction.FINALIZE).value
+    return (state.get("next_action") or TicketNextAction.END).value
 
 
 def get_ticket_workflow():
     graph = StateGraph(TicketState)
+    graph.add_node("scene_guard", scene_guard_node)
     graph.add_node("plan", plan_node)
     graph.add_node("executor", executor_node)
     graph.add_node("reflect", reflect_node)
-    graph.add_node("finalize", finalizer_node)
 
-    graph.set_entry_point("plan")
+    graph.set_entry_point("scene_guard")
+    graph.add_conditional_edges("scene_guard", after_plan, {
+        "plan": "plan",
+        "end": "reflect",
+    })
     graph.add_conditional_edges("plan", after_plan, {
         "executor": "executor",
-        "finalize": "finalize",
+        "end": "reflect",
     })
     graph.add_conditional_edges("executor", after_executor, {
         "reflect": "reflect",
-        "finalize": "finalize",
+        "end": "reflect",
     })
     graph.add_conditional_edges("reflect", after_reflect, {
         "plan": "plan",
         "executor": "executor",
-        "finalize": "finalize",
+        "end": END,
     })
-    graph.add_edge("finalize", END)
     return graph.compile()
