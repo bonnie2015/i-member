@@ -1,0 +1,783 @@
+swagger: "2.0"
+info:
+  version: "1.0.0"
+  title: "SCRM API"
+  description: "根据 doc/scrm-api-doc.md 生成的 Swagger 2.0 文档"
+host: "localhost:8000"
+schemes:
+  - "http"
+consumes:
+  - "application/json"
+produces:
+  - "application/json"
+
+securityDefinitions:
+  BearerAuth:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: "Bearer access token, 示例: Bearer <access_token>"
+
+security:
+  - BearerAuth: []
+
+paths:
+  /order:
+    get:
+      tags: ["Order"]
+      summary: "获取订单列表"
+      operationId: getUserOrders
+      parameters:
+        - $ref: "#/parameters/Page"
+        - $ref: "#/parameters/PageSize"
+        - name: status
+          in: query
+          type: string
+          enum: [pending, paid, shipped, delivered, closed]
+        - name: keyword
+          in: query
+          type: string
+        - $ref: "#/parameters/StartTime"
+        - $ref: "#/parameters/EndTime"
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/OrderListData"
+
+  /order/{order_id}:
+    get:
+      tags: ["Order"]
+      summary: "获取订单详情"
+      operationId: getOrderDetail
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/OrderDetail"
+
+  /product:
+    get:
+      tags: ["Product"]
+      summary: "搜索商品"
+      operationId: searchProduct
+      parameters:
+        - name: keyword
+          in: query
+          type: string
+        - name: sku_id
+          in: query
+          type: string
+        - name: product_id
+          in: query
+          type: string
+        - name: status
+          in: query
+          type: string
+          enum: [on_sale, off_sale]
+        - $ref: "#/parameters/Page"
+        - $ref: "#/parameters/PageSize"
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/ProductListData"
+
+  /product/{product_id}:
+    get:
+      tags: ["Product"]
+      summary: "获取商品详情"
+      operationId: getProductDetail
+      parameters:
+        - name: product_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/ProductDetail"
+
+  /product/stock/{product_id}:
+    get:
+      tags: ["Product"]
+      summary: "获取商品库存"
+      operationId: getProductStock
+      parameters:
+        - name: product_id
+          in: path
+          required: true
+          type: string
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/ProductStock"
+
+  /logistic:
+    get:
+      tags: ["Logistics"]
+      summary: "查询物流"
+      operationId: getLogistic
+      parameters:
+        - name: order_id
+          in: query
+          required: true
+          type: string
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/LogisticData"
+
+  /user:
+    get:
+      tags: ["User"]
+      summary: "用户详情"
+      operationId: getUserDetail
+      parameters:
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/UserDetail"
+
+  /user/tag:
+    get:
+      tags: ["User"]
+      summary: "用户标签"
+      operationId: getUserTag
+      parameters:
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/UserTagData"
+
+  /user/level:
+    get:
+      tags: ["User"]
+      summary: "用户等级"
+      operationId: getUserLevel
+      parameters:
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/UserLevelData"
+
+  /user/score:
+    get:
+      tags: ["User"]
+      summary: "查询积分（score）"
+      operationId: getUserScore
+      parameters:
+        - $ref: "#/parameters/Page"
+        - $ref: "#/parameters/PageSize"
+        - $ref: "#/parameters/StartTime"
+        - $ref: "#/parameters/EndTime"
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/UserScoreData"
+
+  /user/eventLog:
+    get:
+      tags: ["User"]
+      summary: "用户行为记录"
+      operationId: getUserBehavior
+      parameters:
+        - name: event_type
+          in: query
+          type: string
+          enum: [view, purchase, refund, complaint]
+        - $ref: "#/parameters/Page"
+        - $ref: "#/parameters/PageSize"
+        - $ref: "#/parameters/StartTime"
+        - $ref: "#/parameters/EndTime"
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/UserBehaviorData"
+
+  /user/upgrade:
+    post:
+      tags: ["User"]
+      summary: "会员升级"
+      operationId: upgradeMembership
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: "#/definitions/UpgradeMembershipRequest"
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/UpgradeMembershipData"
+
+  /coupon/compensation:
+    post:
+      tags: ["Coupon"]
+      summary: "发放补偿券"
+      operationId: issueCompensationCoupon
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: "#/definitions/IssueCompensationCouponRequest"
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/IssueCompensationCouponData"
+
+  /ticket:
+    post:
+      tags: ["Ticket"]
+      summary: "创建工单"
+      operationId: createTicket
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            $ref: "#/definitions/CreateTicketRequest"
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/CreateTicketData"
+    get:
+      tags: ["Ticket"]
+      summary: "工单列表"
+      operationId: getTickets
+      parameters:
+        - name: ticket_type
+          in: query
+          required: true
+          type: string
+          enum: [refund, change, quality, complain, equity]
+        - name: biz_id
+          in: query
+          required: true
+          type: string
+        - $ref: "#/parameters/SourceChannel"
+        - name: status
+          in: query
+          type: string
+          enum: [open, processing, closed]
+        - name: keyword
+          in: query
+          type: string
+        - $ref: "#/parameters/Page"
+        - $ref: "#/parameters/PageSize"
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/TicketListData"
+
+  /ticket/{ticket_id}:
+    get:
+      tags: ["Ticket"]
+      summary: "工单详情"
+      operationId: getTicket
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          type: string
+        - name: ticket_type
+          in: query
+          required: true
+          type: string
+          enum: [refund, change, quality, complain, equity]
+        - name: biz_id
+          in: query
+          required: true
+          type: string
+        - $ref: "#/parameters/SourceChannel"
+      responses:
+        200:
+          description: ok
+          schema:
+            allOf:
+              - $ref: "#/definitions/ApiResponse"
+              - properties:
+                  data:
+                    $ref: "#/definitions/TicketDetail"
+
+parameters:
+  Page:
+    name: page
+    in: query
+    required: false
+    type: integer
+    default: 1
+    minimum: 1
+  PageSize:
+    name: page_size
+    in: query
+    required: false
+    type: integer
+    default: 20
+    minimum: 1
+    maximum: 100
+  StartTime:
+    name: start_time
+    in: query
+    required: false
+    type: string
+    format: date-time
+  EndTime:
+    name: end_time
+    in: query
+    required: false
+    type: string
+    format: date-time
+  SourceChannel:
+    name: source_channel
+    in: query
+    required: true
+    type: string
+    enum: [wechat, app, web, jd, tmall, douyin, api, offline]
+
+definitions:
+  ApiResponse:
+    type: object
+    required: [code, message]
+    properties:
+      code:
+        type: integer
+        example: 0
+      message:
+        type: string
+        example: ok
+      data:
+        type: object
+
+  OrderItem:
+    type: object
+    properties:
+      sku_id: { type: string }
+      name: { type: string }
+      qty: { type: integer }
+      price: { type: number, format: double }
+
+  OrderSummary:
+    type: object
+    properties:
+      order_id: { type: string }
+      status: { type: string }
+      status_label: { type: string }
+      amount: { type: number, format: double }
+      items_summary: { type: string }
+      created_at: { type: string, format: date-time }
+
+  OrderListData:
+    type: object
+    properties:
+      total: { type: integer }
+      page: { type: integer }
+      page_size: { type: integer }
+      has_more: { type: boolean }
+      orders:
+        type: array
+        items:
+          $ref: "#/definitions/OrderSummary"
+
+  OrderDetail:
+    type: object
+    properties:
+      order_id: { type: string }
+      user_id: { type: string }
+      status: { type: string }
+      status_label: { type: string }
+      amount: { type: number, format: double }
+      created_at: { type: string, format: date-time }
+      address: { type: string }
+      items:
+        type: array
+        items:
+          $ref: "#/definitions/OrderItem"
+
+  ProductSummary:
+    type: object
+    properties:
+      product_id: { type: string }
+      sku_id: { type: string }
+      name: { type: string }
+      price: { type: number, format: double }
+      status: { type: string }
+      stock: { type: integer }
+
+  ProductListData:
+    type: object
+    properties:
+      total: { type: integer }
+      page: { type: integer }
+      page_size: { type: integer }
+      has_more: { type: boolean }
+      products:
+        type: array
+        items:
+          $ref: "#/definitions/ProductSummary"
+
+  ProductDetail:
+    type: object
+    properties:
+      product_id: { type: string }
+      name: { type: string }
+      description: { type: string }
+      brand: { type: string }
+      category: { type: string }
+      price: { type: number, format: double }
+      images:
+        type: array
+        items: { type: string }
+      specs:
+        type: object
+        additionalProperties: true
+
+  ProductStock:
+    type: object
+    properties:
+      product_id: { type: string }
+      total_stock: { type: integer }
+      available_stock: { type: integer }
+      locked_stock: { type: integer }
+      updated_at: { type: string, format: date-time }
+
+  LogisticTrack:
+    type: object
+    properties:
+      time: { type: string, format: date-time }
+      desc: { type: string }
+      location: { type: string }
+
+  LogisticData:
+    type: object
+    properties:
+      order_id: { type: string }
+      carrier: { type: string }
+      tracking_no: { type: string }
+      status: { type: string }
+      status_label: { type: string }
+      tracks:
+        type: array
+        items:
+          $ref: "#/definitions/LogisticTrack"
+
+  UserDetail:
+    type: object
+    properties:
+      user_id: { type: string }
+      name: { type: string }
+      member_level: { type: string }
+      score: { type: integer }
+      total_orders: { type: integer }
+      tags:
+        type: array
+        items: { type: string }
+
+  UserTagData:
+    type: object
+    properties:
+      user_id: { type: string }
+      tags:
+        type: array
+        items: { type: string }
+      tag_details:
+        type: array
+        items: { type: object, additionalProperties: true }
+
+  UserLevelData:
+    type: object
+    properties:
+      user_id: { type: string }
+      level: { type: string }
+      level_code: { type: integer }
+      score: { type: integer }
+      score_to_next: { type: integer }
+      next_level: { type: string }
+
+  ScoreRecord:
+    type: object
+    properties:
+      record_id: { type: string }
+      change: { type: integer }
+      type: { type: string, enum: [earn, deduct, expire, adjust] }
+      reason: { type: string }
+      time: { type: string, format: date-time }
+
+  UserScoreData:
+    type: object
+    properties:
+      user_id: { type: string }
+      score_balance: { type: integer }
+      total: { type: integer }
+      page: { type: integer }
+      page_size: { type: integer }
+      has_more: { type: boolean }
+      records:
+        type: array
+        items:
+          $ref: "#/definitions/ScoreRecord"
+
+  UserEvent:
+    type: object
+    properties:
+      event_id: { type: string }
+      type: { type: string }
+      description: { type: string }
+      time: { type: string, format: date-time }
+      amount: { type: number, format: double }
+
+  UserBehaviorData:
+    type: object
+    properties:
+      total: { type: integer }
+      page: { type: integer }
+      page_size: { type: integer }
+      has_more: { type: boolean }
+      events:
+        type: array
+        items:
+          $ref: "#/definitions/UserEvent"
+
+  UpgradeMembershipRequest:
+    type: object
+    required: [target_level]
+    properties:
+      target_level: { type: string }
+      reason: { type: string }
+
+  NextLevelCondition:
+    type: object
+    properties:
+      next_level: { type: string }
+      required_score: { type: integer }
+      current_score: { type: integer }
+      gap_score: { type: integer }
+
+  UpgradeMembershipData:
+    type: object
+    properties:
+      user_id: { type: string }
+      success: { type: boolean }
+      old_level: { type: string }
+      new_level: { type: string }
+      next_level_condition:
+        $ref: "#/definitions/NextLevelCondition"
+      message: { type: string }
+
+  IssueCompensationCouponRequest:
+    type: object
+    required: [reason]
+    properties:
+      reason: { type: string }
+      scene: { type: string }
+      amount: { type: number, format: double }
+      expire_days: { type: integer }
+
+  IssueCompensationCouponData:
+    type: object
+    properties:
+      issued: { type: boolean }
+      user_id: { type: string }
+      coupon_id: { type: string }
+      coupon_code: { type: string }
+      value: { type: number, format: double }
+      description: { type: string }
+      expires_at: { type: string, format: date-time }
+
+  Contact:
+    type: object
+    properties:
+      name: { type: string }
+      mobile: { type: string }
+      email: { type: string }
+
+  CreateTicketRequest:
+    type: object
+    required: [ticket_type, biz_id, title, content]
+    properties:
+      ticket_type:
+        type: string
+        enum: [refund, change, quality, complain, equity]
+      biz_id: { type: string }
+      title: { type: string }
+      content: { type: string }
+      description: { type: string }
+      images:
+        type: array
+        items: { type: string }
+      order_id: { type: string }
+      order_item_id: { type: string }
+      sku_id: { type: string }
+      quantity: { type: integer }
+      priority:
+        type: string
+        enum: [low, normal, high, urgent]
+      source_channel:
+        type: string
+        enum: [wechat, app, web, jd, tmall, douyin, api, offline]
+      contact:
+        $ref: "#/definitions/Contact"
+      metadata:
+        type: object
+        additionalProperties: true
+      attachments:
+        type: array
+        items: { type: string }
+
+  CreateTicketData:
+    type: object
+    properties:
+      ticket_id: { type: string }
+      user_id: { type: string }
+      ticket_type: { type: string }
+      biz_id: { type: string }
+      status: { type: string }
+      status_label: { type: string }
+      priority: { type: string }
+      source_channel: { type: string }
+      description: { type: string }
+      images:
+        type: array
+        items: { type: string }
+      created_at: { type: string, format: date-time }
+      expected_finish_time: { type: string, format: date-time }
+
+  TimelineItem:
+    type: object
+    properties:
+      time: { type: string, format: date-time }
+      action: { type: string }
+      operator: { type: string }
+
+  TicketSummary:
+    type: object
+    properties:
+      ticket_id: { type: string }
+      ticket_type: { type: string }
+      biz_id: { type: string }
+      status: { type: string }
+      title: { type: string }
+      created_at: { type: string, format: date-time }
+
+  TicketListData:
+    type: object
+    properties:
+      total: { type: integer }
+      page: { type: integer }
+      page_size: { type: integer }
+      has_more: { type: boolean }
+      tickets:
+        type: array
+        items:
+          $ref: "#/definitions/TicketSummary"
+
+  TicketDetail:
+    type: object
+    properties:
+      ticket_id: { type: string }
+      user_id: { type: string }
+      ticket_type: { type: string }
+      biz_id: { type: string }
+      status: { type: string }
+      status_label: { type: string }
+      title: { type: string }
+      content: { type: string }
+      description: { type: string }
+      images:
+        type: array
+        items: { type: string }
+      order_id: { type: string }
+      order_item_id: { type: string }
+      sku_id: { type: string }
+      quantity: { type: integer }
+      priority: { type: string }
+      source_channel: { type: string }
+      latest_progress: { type: string }
+      expected_finish_time: { type: string, format: date-time }
+      metadata:
+        type: object
+        additionalProperties: true
+      created_at: { type: string, format: date-time }
+      updated_at: { type: string, format: date-time }
+      timeline:
+        type: array
+        items:
+          $ref: "#/definitions/TimelineItem"
