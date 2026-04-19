@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from app.agents.llm.llm_factory import get_local_llm
 from app.agents.prompts.prompt_loader import load_prompt
+from app.agents.skills.registry import load_skill_context
 from app.config.logging import get_logger
 
 logger = get_logger("recognize_intent")
@@ -23,6 +24,7 @@ class RouterOutput(BaseModel):
 async def recognize_router(
     messages: Sequence[BaseMessage],
     last_service: Optional[Dict] = None,
+    thread_id: Optional[str] = None,
 ) -> RouterOutput:
     try:
         llm = get_local_llm(role="router")
@@ -37,6 +39,7 @@ async def recognize_router(
                     for message in messages
                 ],
                 "last_service": last_service or {},
+                "skills_snapshot": load_skill_context(),
             },
             ensure_ascii=False,
         )
@@ -52,10 +55,10 @@ async def recognize_router(
         if response.is_simple_ack and not response.direct_reply:
             response.direct_reply = "好的，有需要随时告诉我。"
 
-        logger.info("Router recognize response: %s", response)
+        logger.info("[recognize_intent] thread_id=%s response=%s", thread_id or "unknown", response)
         return response
     except Exception as e:
-        logger.error("Router recognition failed: %s", e, exc_info=True)
+        logger.error("[recognize_intent] thread_id=%s failed: %s", thread_id or "unknown", e, exc_info=True)
         return RouterOutput(
             intent="qa",
             is_continuous=False,

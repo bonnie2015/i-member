@@ -1,16 +1,6 @@
-from enum import Enum
 from typing import List, Dict, Any, Optional, Annotated, Literal, TypedDict
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
-
-class TicketNextAction(str, Enum):
-    PLAN = "plan"
-    EXECUTOR = "executor"
-    REFLECT = "reflect"
-    END = "end"
-
-
-TicketScene = Literal["refund", "change", "quality", "complain", "equity", "others"]
 
 
 class AgentState(TypedDict, total=False):
@@ -42,43 +32,10 @@ class AgentState(TypedDict, total=False):
 
 
 class TicketState(AgentState, total=False):
-
-    ticket_scene: Optional[TicketScene]
+    service_key: Optional[str]
+    skill_location: Optional[str]
     current_goal: Optional[str]
-    selected_skill_content: Optional[str]
-    steps: List[Dict[str, Any]]
-    current_step_index: int  # 当前停留的步骤索引：executor 执行它；失败时保持；继续下一步时才推进
+    available_tools: List[str]
     slots: Optional[Dict[str, Any]]
-    expected_slots: List[str]  # 本轮计划全程预期收集的槽位 key 聚合（所有步骤 target_slots 的并集）
-
-    next_action: Optional[TicketNextAction]
-    replan_count: int
     final_status: Optional[Literal["success", "failed", "cancelled"]]
     final_reason: Optional[str]
-
-
-def first_pending_step_index(steps: List[Dict[str, Any]]) -> Optional[int]:
-    for index, step in enumerate(steps):
-        if not isinstance(step, dict):
-            continue
-        if not bool(step.get("is_success")):
-            return index
-    return None
-
-
-def normalize_current_step_index(
-    steps: List[Dict[str, Any]],
-    current_step_index: int,
-) -> Optional[int]:
-    if not steps:
-        return None
-
-    if 0 <= current_step_index < len(steps):
-        step = steps[current_step_index]
-        if isinstance(step, dict) and not bool(step.get("is_success")):
-            return current_step_index
-
-    pending_index = first_pending_step_index(steps)
-    if pending_index is not None:
-        return pending_index
-    return None

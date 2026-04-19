@@ -49,11 +49,12 @@ def _extract_point_info(state: Mapping[str, Any]) -> Dict[str, Any]:
 
     if intent == "ticket":
         slots = _slots_to_dict(state.get("slots") or {})
+        service_key = state.get("service_key")
         point_info.update({
-            "ticket_scene": state.get("ticket_scene"),
+            "service_key": service_key,
             "order_id": slots.get("order_id") or slots.get("biz_id"),
             "ticket_id": slots.get("ticket_id"),
-            "ticket_type": slots.get("ticket_type") or state.get("ticket_scene"),
+            "ticket_type": slots.get("ticket_type") or service_key,
             "confirmed_slots": sorted([key for key, value in slots.items() if value not in (None, "", [], {})]),
         })
     elif intent == "qa":
@@ -71,15 +72,8 @@ def build_service_summary_from_state(state: Mapping[str, Any]) -> Dict[str, Any]
     goal = str(state.get("current_goal") or state.get("service_entry_message") or "").strip()
 
     final_reply = str(state.get("final_reply") or "").strip()
-    steps = list(state.get("steps") or [])
-    last_step = steps[-1] if steps else {}
     if final_reply:
         result = _trim_text(final_reply, 160)
-    elif last_step:
-        if last_step.get("ok"):
-            result = _trim_text(str(last_step.get("summary") or "当前步骤已完成"), 160)
-        else:
-            result = _trim_text(str(last_step.get("machine_reason") or "当前处理未完成"), 160)
     else:
         result = "当前服务已结束"
 

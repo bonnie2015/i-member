@@ -97,7 +97,12 @@ async def _build_invoke_input(
         if interrupt_content:
             message_updates.append(AIMessage(content=interrupt_content))
         message_updates.append(HumanMessage(content=user_message))
-        return Command(update={"messages": message_updates}, resume=user_message)
+        return Command(
+            update={
+                "messages": message_updates,
+            },
+            resume=user_message,
+        )
 
     user_context: Dict[str, Any] = {}
     try:

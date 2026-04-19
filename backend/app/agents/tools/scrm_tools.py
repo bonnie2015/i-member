@@ -381,12 +381,13 @@ async def search_product(tool_input: Dict[str, Any]) -> Dict[str, Any]:
 
     入参规则：
     - 无必填字段。
-    - 支持可选 query 参数：keyword、sku_id、product_id、status、page、page_size。
+    - 支持可选 query 参数：keyword、sku_id、product_id、status、start_time、end_time、page、page_size。
     - status 可选值：on_sale、off_sale。
+    - start_time / end_time 使用 ISO8601 字符串。
 
     成功返回：
     - 顶层常见字段：total、page、page_size、has_more、products。
-    - products 为数组；单个商品常见字段：product_id、sku_id、name、product_name、price、status、product_status、stock。
+    - products 为数组；单个商品常见字段：product_id、sku_id、name、product_name、price、status、product_status、stock、created_at、updated_at。
 
     失败返回：
     - 统一返回 error、error_code、tool。

@@ -13,10 +13,11 @@
 
 ## 本轮覆盖
 
-- `router -> scene_guard -> planner -> executor -> reflect -> END`
-- `scene_guard` 多轮澄清
-- `reflect` 合并收口
+- `router -> scene_guard -> react_agent -> END`
+- `scene_guard` 多轮澄清与服务识别
+- 单一 `ticket_react_agent` 承担追问、交互、tool use 与统一收口
 - 标准 `scrm` 服务下的核心 ticket 场景
+- 边界与非常规对话
 - 非 ticket 路由隔离
 - 前端可见交互类型契约：
   - `select_order`
@@ -35,20 +36,21 @@
 
 ## 当前回归结果
 
-这是当前标准 `scrm` 服务上的完整矩阵结果。
+这是当前 B 方案在标准 `scrm` 服务上的最新矩阵结果。
 
-| Mode | Case 数 | 原始通过数 | 原始通过率 |
+| Mode | Case 数 | 通过数 | 通过率 |
 |---|---:|---:|---:|
-| `standard` | `12` | `12` | `100%` |
-| **合计** | **12** | **12** | **100%** |
+| `standard` | `13` | `13` | `100%` |
+| `edge` | `5` | `5` | `100%` |
+| **合计** | **18** | **18** | **100%** |
 
-### 最终口径
+### 当前效率口径
 
 | 指标 | 数值 |
 |---|---:|
-| 总 case 数 | `12` |
-| 最终通过数 | `12` |
-| 最终正确率 | `100%` |
+| `standard` 首轮平均耗时 | `44.4s` |
+| `standard` 单 case 平均完成耗时 | `57.4s` |
+| `edge` 首轮平均耗时 | `27.2s` |
 
 ## 关键验证结果
 
@@ -60,47 +62,37 @@
 
 ### 2. `scene_guard` 已承担 ticket 入口收敛
 
-- 显式退货 -> `refund`
-- 显式换货 -> `change`
-- 投诉 -> `complain`
-- 权益 -> `equity`
-- 模糊工单查询 -> 连续澄清，必要时收口
+- 显式退货 / 换货 / 投诉 / 权益可直接进入对应服务
+- 模糊工单查询先澄清，再进入对应服务
+- `scene` 仅保留在 `scene_guard` 内部，不再作为后续执行主状态外溢
 
-### 3. planner 已收成宏观路线图
+### 3. 单一 `ticket_react_agent` 已承接核心业务执行
 
-当前 step 只保留：
+当前 ticket 主链路中的业务推进由单一 ReAct Agent 完成，负责：
 
-- `goal`
-- `completion_signal`
-- `target_slots`
-- `available_tools`
+- 追问
+- 交互
+- tool use
+- 信息收集
+- 查询 / 创建 / 收口
 
-已不再输出：
+已不再使用：
 
-- `type`
-- `tool_name`
-- `interaction_type`
-- `interaction_candidates`
-- `reply`
+- `planner`
+- `executor`
+- `reflect`
 
-### 4. executor 已能自主生成交互
+### 4. 正向交互已验证
 
-本轮已验证正向交互：
+本轮已验证：
 
 - `select_order`
 - `select_product`
 - `select_ticket`
 
 说明：
-- 交互决策权已经在 executor
-- planner 不再控制交互
-
-### 5. reflect 合并收口成功
-
-- `scene_guard / planner / executor` 在需要结束时不直接结束图
-- 它们只表达 `next_action = end`
-- 统一流到 `reflect`
-- `reflect` 生成 `final_reply` 后再走图的 `END`
+- 当前交互决策权已经在 `ticket_react_agent`
+- 业务内容由 skill 和 tools 驱动
 
 ## 前端渲染契约验证
 
@@ -158,12 +150,11 @@
 原因不是链路不通，而是：
 
 1. 当前首轮耗时仍偏高
-2. 工单查询路径还能继续精简
+2. `ticket_id` 直查体验仍可继续优化
 3. mock 已稳定，但仍不等于最终业务真值数据
 
 ## 仍值得继续优化的点
 
-1. 工单进度查询路径还可以继续减字段负担
-   - 继续减少非首要字段上浮
-2. `SCRM` 不通场景下还可以再少问一些低价值问题
+1. `ticket_id` 直查路径还可以继续减少无效澄清
+2. 混合意图场景的主路由策略还可继续优化
 3. 如果要做最终业务验收，需要更接近真实业务语义的数据集

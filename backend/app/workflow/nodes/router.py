@@ -29,8 +29,9 @@ def router_condition(state: AgentState) -> str:
 
 async def router_node(state: AgentState):
     messages = state.get("messages") or []
+    thread_id = str(state.get("thread_id") or "").strip() or "unknown"
     if not messages:
-        logger.warning("Router messages empty, defaulting to QA")
+        logger.warning("[router] thread_id=%s messages empty, defaulting to QA", thread_id)
         return {
             "is_direct_reply": False,
             "is_continuous": False,
@@ -57,6 +58,7 @@ async def router_node(state: AgentState):
         result = await recognize_router(
             messages=messages,
             last_service=eligible_last_service,
+            thread_id=thread_id,
         )
 
         if not eligible_last_service or not is_fresh_turn:
@@ -81,7 +83,7 @@ async def router_node(state: AgentState):
             "reason": result.reason,
         }
     except Exception as e:
-        logger.warning(f"Router error: {e}")
+        logger.warning("[router] thread_id=%s error: %s", thread_id, e)
         return {
             "is_direct_reply": False,
             "is_continuous": False,

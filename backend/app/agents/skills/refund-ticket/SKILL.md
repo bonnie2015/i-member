@@ -1,6 +1,8 @@
 ---
 name: refund-ticket
 description: 处理退货/换货相关诉求，基于订单、商品与工单接口完成查询、确认、创建与追踪。
+available_tools: get_user_orders, get_order_detail, search_product, get_product_detail, get_product_stock, create_ticket, get_ticket, get_tickets
+clarify_labels: 退货, 换货, 退换货进度查询
 ---
 
 # 订单退换货

@@ -1,6 +1,8 @@
 ---
 name: equity-ticket
 description: 处理会员权益相关诉求，基于会员、积分与工单接口完成查询、确认、创建与追踪。
+available_tools: get_user_score, get_user_level, create_ticket, get_ticket, get_tickets
+clarify_labels: 权益申请, 积分权益查询, 会员升级, 权益工单查询
 ---
 
 # 会员权益工单
