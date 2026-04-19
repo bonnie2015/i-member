@@ -1,219 +1,186 @@
-from typing import Any, Dict, Optional
+from __future__ import annotations
 
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
+import asyncio
+from datetime import datetime, timezone
+from typing import Any, Dict
 
-from app.config.config import settings
+from langchain_core.messages import RemoveMessage
+
+from app.agents.memory.user_facts import extract_and_save_user_facts
 from app.config.logging import get_logger
-from app.agents.memory.redis_keys import compensation_day_key, compensation_week_key
+from app.agents.memory.service_memory import save_service_memory
+from app.workflow.nodes.post_process.service_memory_builder import build_service_memory
 from app.workflow.state import AgentState
-from app.workflow.nodes.post_process.service_summary_builder import build_service_summary_from_state
 
-logger = get_logger("post_process_node")
+logger = get_logger("post_process")
 
-_SERVICE_END_CLEAR_FIELDS = {
-    "intent": None,
-    "reason": None,
-    "is_direct_reply": False,
-    "is_continuous": False,
-    "ticket_scene": None,
-    "current_goal": None,
-    "slots": {},
-    "steps": [],
-    "current_step_index": 0,
-    "replan_count": 0,
-    "step_retry_count": 0,
-    "next_action": None,
-    "final_status": None,
-    "final_reason": None,
-    "collected_info": {},
-    "qa_turn_count": 0,
-    "service_entry_message": None,
+_STATE_FIELDS_TO_KEEP = {
+    "user_id",
+    "thread_id",
+    "channel",
+    "user_context",
+    "final_reply",
+    "messages",
+    "tool_messages",
 }
 
-_COMPENSATION_DAY_TTL = 86400
-_COMPENSATION_WEEK_TTL = 7 * 86400
-_COMPENSATION_WEEK_LIMIT = 50
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
-async def _score_emotion(messages) -> float:
-    try:
-        from app.service.emotion_service import score_emotion
+def _render_trace_item(item: Any) -> str:
+    if isinstance(item, dict):
+        tool_name = str(item.get("tool_name") or "").strip()
+        tool_result = item.get("tool_result")
+        if tool_name:
+            if tool_result is None:
+                return tool_name
+            return f"{tool_name}: {tool_result}"
+    return str(item or "").strip()
 
-        return await score_emotion(messages)
-    except Exception as e:
-        logger.warning(f"[post_process] emotion scoring failed: {e}")
-        return 0.5
 
-def _memory_messages(state: AgentState):
-    current_messages = list(state.get("messages") or [])
-    if not state.get("is_continuous"):
-        return current_messages
+def _fallback_service_memory(state: AgentState) -> Dict[str, Any]:
+    intent = str(state.get("intent") or "unknown").strip() or "unknown"
+    reason = str(state.get("reason") or "").strip()
+    final_reply = str(state.get("final_reply") or "").strip()
+    final_status = str(state.get("final_status") or "").strip() or "failed"
+    final_reason = str(state.get("final_reason") or "").strip() or "post_process_summary_failed"
+    started_at = str(state.get("started_at") or "").strip() or _utc_now_iso()
+    ended_at = _utc_now_iso()
 
-    user_context = state.get("user_context") or {}
-    last_service = user_context.get("last_service") or {}
-    if not last_service:
-        logger.warning("[post_process] is_continuous=True but last_service is empty")
-        return current_messages
+    raw_trace = state.get("trace")
+    if isinstance(raw_trace, list):
+        trace = [_render_trace_item(item) for item in raw_trace if _render_trace_item(item)]
+    elif isinstance(raw_trace, str) and raw_trace.strip():
+        trace = [raw_trace.strip()]
+    else:
+        trace = []
+    if not trace:
+        trace = ["post_process_fallback"]
 
-    previous = []
-    for msg in last_service.get("messages", []):
-        content = str(msg.get("content", "")).strip()
-        if not content:
+    summary_parts = [part for part in [final_reply, f"status={final_status}", f"reason={final_reason}"] if part]
+    if not summary_parts:
+        summary_parts.append("post_process fallback summary")
+
+    facts: Dict[str, Any] = {"intent": intent, "summary_source": "fallback_rule"}
+    service_key = str(state.get("service_key") or "").strip()
+    if service_key:
+        facts["service_key"] = service_key
+    slots = state.get("slots")
+    if isinstance(slots, dict):
+        for key in ("order_id", "biz_id", "ticket_id", "ticket_type", "product_id", "sku_id"):
+            value = str(slots.get(key) or "").strip()
+            if value:
+                facts[key] = value
+
+    return {
+        "intent": intent,
+        "goal": reason or "服务收尾归档",
+        "summary": "；".join(summary_parts)[:300],
+        "trace": trace[:12],
+        "facts": facts,
+        "final_status": final_status,
+        "final_reason": final_reason,
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "is_continuous_with_last": False,
+    }
+
+
+def _empty_value(value: Any) -> Any:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, dict):
+        return {}
+    if isinstance(value, list):
+        return []
+    if isinstance(value, tuple):
+        return []
+    if isinstance(value, set):
+        return []
+    if isinstance(value, int):
+        return 0
+    if isinstance(value, float):
+        return 0
+    return None
+
+
+def _build_clear_updates(state: AgentState) -> Dict[str, Any]:
+    updates: Dict[str, Any] = {}
+    for key, value in state.items():
+        if key in _STATE_FIELDS_TO_KEEP:
             continue
-        if msg.get("role") == "user":
-            previous.append(HumanMessage(content=content))
-        else:
-            previous.append(AIMessage(content=content))
-    return previous + current_messages
+        updates[key] = _empty_value(value)
+    return updates
 
 
-async def _save_memory(user_id: str, messages) -> None:
-    from app.agents.memory.long_term_memory import extract_and_save_memories
+def _log_background_task_result(task: asyncio.Task[Any], *, user_id: str) -> None:
+    try:
+        task.result()
+    except Exception as e:
+        logger.warning("[post_process] async user facts extraction failed for %s: %s", user_id, e)
 
-    await extract_and_save_memories(user_id, messages)
 
-
-async def _save_service_history(
+def _spawn_user_facts_task(
+    *,
     user_id: str,
-    intent: str,
-    messages,
-    final_reply: Optional[str],
-    is_continuous: bool,
-    service_summary_structured: Optional[Dict[str, Any]] = None,
-    state_snapshot: Optional[Dict[str, Any]] = None,
+    messages: list[Any],
+    service_memory_summary: str,
 ) -> None:
-    from app.agents.memory.service_history import save_service
-
-    await save_service(
-        user_id=user_id,
-        intent=intent,
-        messages=messages,
-        final_reply=final_reply,
-        merge_with_last=is_continuous,
-        service_summary_structured=service_summary_structured,
-        state_snapshot=state_snapshot,
+    task = asyncio.create_task(
+        extract_and_save_user_facts(
+            user_id=user_id,
+            messages=messages,
+            service_memory_summary=service_memory_summary,
+        )
     )
-
-
-def _build_state_snapshot(state: AgentState) -> Dict[str, Any]:
-    keep_fields = [
-        "intent",
-        "is_continuous",
-        "final_reply",
-        "ticket_scene",
-        "current_goal",
-        "slots",
-        "steps",
-        "current_step_index",
-        "collected_info",
-        "next_action",
-        "qa_turn_count",
-        "service_entry_message",
-    ]
-    snapshot: Dict[str, Any] = {}
-    for field in keep_fields:
-        value = state.get(field)
-        if value not in (None, "", [], {}):
-            snapshot[field] = value
-    return snapshot
-
-
-async def _check_compensation_quota(user_id: str) -> bool:
-    try:
-        import datetime
-        from redis.asyncio import Redis as AsyncRedis
-
-        redis = AsyncRedis.from_url(settings.redis_url)
-        today = datetime.date.today().isoformat()
-        day_key = compensation_day_key(user_id, today)
-        week_key = compensation_week_key(user_id)
-
-        if await redis.exists(day_key):
-            await redis.aclose()
-            return False
-
-        week_total_raw = await redis.get(week_key)
-        week_total = float(week_total_raw) if week_total_raw else 0.0
-        await redis.aclose()
-        return week_total < _COMPENSATION_WEEK_LIMIT
-    except Exception as e:
-        logger.warning(f"[post_process] compensation quota check failed: {e}")
-        return True
-
-
-async def _record_compensation(user_id: str, amount: float) -> None:
-    try:
-        import datetime
-        from redis.asyncio import Redis as AsyncRedis
-
-        redis = AsyncRedis.from_url(settings.redis_url)
-        today = datetime.date.today().isoformat()
-        day_key = compensation_day_key(user_id, today)
-        week_key = compensation_week_key(user_id)
-
-        await redis.set(day_key, "1", ex=_COMPENSATION_DAY_TTL)
-        current = float(await redis.get(week_key) or 0)
-        await redis.set(week_key, str(current + amount), ex=_COMPENSATION_WEEK_TTL)
-        await redis.aclose()
-    except Exception as e:
-        logger.warning(f"[post_process] compensation record failed: {e}")
+    task.add_done_callback(lambda current: _log_background_task_result(current, user_id=user_id))
 
 
 async def post_process_node(state: AgentState) -> Dict[str, Any]:
-    user_id = state.get("user_id", "unknown")
-    intent = state.get("intent") or "unknown"
-    messages = state.get("messages", [])
-    user_context = state.get("user_context") or {}
-
     updates: Dict[str, Any] = {}
-    service_summary_structured = build_service_summary_from_state(state)
-    state_snapshot = _build_state_snapshot(state)
+    messages = list(state.get("messages") or [])
+    tool_messages = list(state.get("tool_messages") or [])
+    service_memory: Dict[str, Any]
+    merge_with_last = False
 
     try:
-        await _save_memory(user_id, _memory_messages(state))
-    except Exception as e:
-        logger.warning(f"[post_process] memory save failed: {e}")
-
-    try:
-        await _save_service_history(
-            user_id=user_id,
-            intent=intent,
+        service_memory = await build_service_memory(
+            state,
             messages=messages,
-            final_reply=state.get("final_reply"),
-            is_continuous=bool(state.get("is_continuous", False)),
-            service_summary_structured=service_summary_structured,
-            state_snapshot=state_snapshot,
+        )
+        merge_with_last = bool(service_memory.pop("is_continuous_with_last", False))
+    except Exception as e:
+        logger.warning("[post_process] summary build failed, using fallback memory: %s", e)
+        service_memory = _fallback_service_memory(state)
+        merge_with_last = False
+
+    try:
+        service_memory.pop("is_continuous_with_last", None)
+        user_id = str(state.get("user_id") or "unknown")
+        thread_id = str(state.get("thread_id") or "unknown")
+        await save_service_memory(
+            user_id=user_id,
+            thread_id=thread_id,
+            service_memory=service_memory,
+            messages=messages,
+            merge_with_last=merge_with_last,
+        )
+        _spawn_user_facts_task(
+            user_id=user_id,
+            messages=messages,
+            service_memory_summary=str(service_memory.get("summary") or "").strip(),
         )
     except Exception as e:
-        logger.warning(f"[post_process] service history save failed: {e}")
+        logger.warning(f"[post_process] save service memory failed, state preserved without cleanup: {e}")
+        return {}
 
-    emotion_score = await _score_emotion(messages)
-    updates["emotion_score"] = emotion_score
-
-    if emotion_score is not None and emotion_score <= 0.2:
-        profile = user_context.get("profile", {})
-        tags = profile.get("tags", [])
-        is_high_value = "高价值" in tags or profile.get("total_orders", 0) >= 10
-
-        if is_high_value and await _check_compensation_quota(user_id):
-            try:
-                from app.agents.tools.scrm_tools import call_scrm_api
-
-                coupon_result = await call_scrm_api(
-                    "issue_compensation_coupon",
-                    {"reason": "服务情绪补偿"},
-                )
-                if coupon_result.get("issued"):
-                    await _record_compensation(user_id, coupon_result.get("value", 0))
-                    final_reply = state.get("final_reply", "")
-                    coupon_desc = coupon_result.get("description", "已为您发放补偿优惠券")
-                    updates["final_reply"] = f"{final_reply}\n\n{coupon_desc}"
-            except Exception as e:
-                logger.warning(f"[post_process] coupon issuance failed: {e}")
-
-    updates.update(_SERVICE_END_CLEAR_FIELDS)
-    remove_msgs = [RemoveMessage(id=m.id) for m in messages if hasattr(m, "id") and m.id]
-    if remove_msgs:
-        updates["messages"] = remove_msgs
-
+    updates.update(_build_clear_updates(state))
+    remove_messages = [RemoveMessage(id=message.id) for message in messages if getattr(message, "id", None)]
+    if remove_messages:
+        updates["messages"] = remove_messages
+    remove_tool_messages = [RemoveMessage(id=message.id) for message in tool_messages if getattr(message, "id", None)]
+    if remove_tool_messages:
+        updates["tool_messages"] = remove_tool_messages
     return updates

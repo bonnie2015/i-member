@@ -30,8 +30,6 @@ services:
       - SCRM_URL=${SCRM_URL}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - SCRM_BASE_URL=${SCRM_BASE_URL}
-      - SCRM_API_PREFIX=${SCRM_API_PREFIX}
       - DEBUG=${DEBUG:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
@@ -60,8 +58,6 @@ services:
       - SCRM_URL=${SCRM_URL}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - SCRM_BASE_URL=${SCRM_BASE_URL}
-      - SCRM_API_PREFIX=${SCRM_API_PREFIX}
       - DEBUG=${DEBUG:-false}
       - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
     volumes:
@@ -85,8 +81,6 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
       - PORT=3000
-    volumes:
-      - ./frontend:/app
     networks:
       - imember-network
     restart: unless-stopped

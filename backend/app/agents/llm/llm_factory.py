@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Literal, Optional
+from typing import Literal
 from langchain_core.language_models.chat_models import BaseChatModel
 from app.config.config import settings
 from app.config.logging import get_logger
@@ -8,15 +8,14 @@ logger = get_logger("llm_factory")
 
 _LOCAL_MODELS = {
     "router": "qwen2.5:3b",
-    "scene_guard": "qwen3.5:4b",
+    "profile": "qwen2.5:3b",
 }
 _SUBGRAPH_MODEL = "deepseek-chat"
 
 
 @lru_cache(maxsize=4)
 def get_local_llm(
-    role: Literal["router", "scene_guard"] = "router",
-    format: Optional[Literal["json"]] = None,
+    role: Literal["router", "profile"] = "router",
 ) -> BaseChatModel:
 
     from langchain_ollama import ChatOllama
@@ -28,11 +27,8 @@ def get_local_llm(
         temperature=0,          # 路由判断不需要随机性
         timeout=settings.ollama_timeout,
     )
-    if format == "json":
-        kwargs["format"] = "json"
-
     llm = ChatOllama(**kwargs)
-    logger.info(f"Local LLM ready: model={model_name}, role={role}, format={format}")
+    logger.info(f"Local LLM ready: model={model_name}, role={role}")
     return llm
 
 

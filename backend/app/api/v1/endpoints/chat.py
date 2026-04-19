@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from app.api.v1.models.chat import ChatRequest, ChatResponse
 from app.security.jwt_auth import AuthContext, get_auth_context
-from app.agents.tools.scrm_client import REQUEST_ACCESS_TOKEN_CTX, REQUEST_USER_ID_CTX
+from app.agents.tools.scrm_client import REQUEST_ACCESS_TOKEN_CTX, REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
 from app.workflow.graph import (
     invoke_member_ops,
 )
@@ -19,6 +19,7 @@ async def chat(
     context_token = REQUEST_ACCESS_TOKEN_CTX.set(auth.access_token)
     user_context_token = REQUEST_USER_ID_CTX.set(user_id)
     thread_id = request.thread_id or f"{user_id}_{uuid.uuid4().hex[:8]}"
+    thread_context_token = REQUEST_THREAD_ID_CTX.set(thread_id)
     try:
         result = await invoke_member_ops(
             user_message=request.message,
@@ -28,5 +29,6 @@ async def chat(
         )
         return ChatResponse(**result)
     finally:
+        REQUEST_THREAD_ID_CTX.reset(thread_context_token)
         REQUEST_ACCESS_TOKEN_CTX.reset(context_token)
         REQUEST_USER_ID_CTX.reset(user_context_token)

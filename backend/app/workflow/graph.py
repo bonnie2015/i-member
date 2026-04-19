@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 import json
+from datetime import datetime, timezone
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, StateGraph
@@ -11,9 +12,9 @@ from app.config.logging import get_logger
 from app.models.interaction import InteractionPayload
 from app.workflow.state import AgentState
 from app.workflow.nodes.post_process.post_process import post_process_node
-from app.workflow.nodes.router import router_condition, router_node
-from app.workflow.nodes.qa.node import qa_node
-from app.workflow.nodes.recommend.node import recommend_node
+from app.workflow.nodes.router.router import router_condition, router_node
+from app.workflow.nodes.qa.qa import qa_node
+from app.workflow.nodes.recommend.recommend import recommend_node
 from app.workflow.nodes.ticket.graph import get_ticket_workflow
 
 logger = get_logger("workflow")
@@ -97,11 +98,16 @@ async def _build_invoke_input(
         if interrupt_content:
             message_updates.append(AIMessage(content=interrupt_content))
         message_updates.append(HumanMessage(content=user_message))
-        return Command(update={"messages": message_updates}, resume=user_message)
+        return Command(
+            update={
+                "messages": message_updates,
+            },
+            resume=user_message,
+        )
 
     user_context: Dict[str, Any] = {}
     try:
-        from app.service.user_context import load_user_context
+        from app.agents.memory.user_context import load_user_context
 
         user_context = await load_user_context(user_id, thread_id=thread_id)
     except Exception as e:
@@ -112,14 +118,19 @@ async def _build_invoke_input(
         "thread_id": thread_id,
         "channel": channel,
         "messages": [HumanMessage(content=user_message)],
-        "service_entry_message": user_message,
+        "tool_messages": [],
+        "trace": [],
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "entry_message": user_message,
         "final_reply": None,
         "intent": None,
         "reason": None,
-        "is_direct_reply": False,
-        "emotion_score": None,
         "user_context": user_context,
-        "token_usage_total": 0,
+        "service_key": None,
+        "ticket_loop_count": 0,
+        "slots": {},
+        "final_status": None,
+        "final_reason": None,
     }
 
 
@@ -130,23 +141,22 @@ def create_workflow(checkpointer):
     graph.add_node("ticket_agent", get_ticket_workflow())
     graph.add_node("qa_agent", qa_node)
     graph.add_node("recommend_agent", recommend_node)
-    graph.add_node("post_process_node", post_process_node)
+    graph.add_node("post_process", post_process_node)
 
     graph.set_entry_point("router_node")
     graph.add_conditional_edges(
         "router_node",
         router_condition,
         {
-            "post_process": "post_process_node",
             "ticket": "ticket_agent",
             "qa": "qa_agent",
             "recommend": "recommend_agent",
         },
     )
-    graph.add_edge("ticket_agent", "post_process_node")
-    graph.add_edge("qa_agent", "post_process_node")
-    graph.add_edge("recommend_agent", "post_process_node")
-    graph.add_edge("post_process_node", END)
+    graph.add_edge("ticket_agent", "post_process")
+    graph.add_edge("qa_agent", "post_process")
+    graph.add_edge("recommend_agent", "post_process")
+    graph.add_edge("post_process", END)
     return graph.compile(checkpointer=checkpointer)
 
 
