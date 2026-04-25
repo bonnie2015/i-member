@@ -3,13 +3,15 @@ from contextvars import ContextVar
 from typing import Any, Dict, Optional
 
 import httpx
-from redis.asyncio import Redis as AsyncRedis
 
 from app.config.config import settings
 from app.config.logging import get_logger
+from app.config.redis import get_redis_client
+from app.config.redis_keys import SCRM_RATE_LIMIT_KEY
 
 REQUEST_ACCESS_TOKEN_CTX: ContextVar[Optional[str]] = ContextVar("access_token", default=None)
 REQUEST_USER_ID_CTX: ContextVar[Optional[str]] = ContextVar("user_id", default=None)
+REQUEST_THREAD_ID_CTX: ContextVar[Optional[str]] = ContextVar("thread_id", default=None)
 
 logger = get_logger("scrm_client")
 _SCRM_RATE_LIMIT_PER_MIN = 30
@@ -33,7 +35,7 @@ def _build_headers() -> Dict[str, str]:
 def _rate_limit_key(user_id: str, now_s: Optional[int] = None) -> str:
     timestamp = int(now_s or time.time())
     minute_bucket = timestamp // 60
-    return f"scrm:rate_limit:{user_id}:{minute_bucket}"
+    return SCRM_RATE_LIMIT_KEY.format(user_id=user_id, minute_bucket=minute_bucket)
 
 
 async def _check_rate_limit() -> None:
@@ -46,20 +48,17 @@ async def _check_rate_limit() -> None:
         logger.warning("[scrm_client] missing user_id in request context, skip rate limit")
         return
 
-    client = AsyncRedis.from_url(settings.redis_url, decode_responses=True)
+    client = await get_redis_client()
     key = _rate_limit_key(user_id)
-    try:
-        current = await client.incr(key)
-        if current == 1:
-            await client.expire(key, 90)
-        if current > limit:
-            raise httpx.HTTPStatusError(
-                message=f"SCRM rate limit exceeded for user_id={user_id}",
-                request=httpx.Request("RATE_LIMIT", "redis://scrm-rate-limit"),
-                response=httpx.Response(429, request=httpx.Request("RATE_LIMIT", "redis://scrm-rate-limit")),
-            )
-    finally:
-        await client.aclose()
+    current = await client.incr(key)
+    if current == 1:
+        await client.expire(key, 90)
+    if current > limit:
+        raise httpx.HTTPStatusError(
+            message=f"SCRM rate limit exceeded for user_id={user_id}",
+            request=httpx.Request("RATE_LIMIT", "redis://scrm-rate-limit"),
+            response=httpx.Response(429, request=httpx.Request("RATE_LIMIT", "redis://scrm-rate-limit")),
+        )
 
 
 async def call_scrm_endpoint(

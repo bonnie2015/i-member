@@ -335,8 +335,6 @@ class InteractionPayload(BaseModel):
 
 def build_interaction_template_text() -> str:
     lines: List[str] = [
-        "【交互模板】",
-        "",
         "以下内容用于在执行阶段根据当前步骤信息、当前可用槽位和当前步骤结果，拼装最终发给前端的 interaction。",
         "interaction 的结构固定，不要改字段名，不要新增字段，不要输出空 items 或空 detail。",
         "当某种 interaction_type 的必需字段还不够时，不要硬拼假的 interaction，应先继续收敛信息。",
@@ -391,7 +389,7 @@ def build_interaction_template_text() -> str:
             "执行规则：",
             "- 当当前步骤 type = `interacting` 时，先根据步骤中的 `interaction_type` 确定要使用哪种固定模板。",
             "- 再结合当前步骤信息、当前可用 slots、当前步骤实际拿到的数据，拼装最终 interaction。",
-            "- 中断时必须同时提供 `reply` 和拼装好的 `interaction`，即调用 `interrupt(reply=..., interaction=...)`。",
+            "- 中断时必须同时提供 `reply` 和拼装好的 `interaction`，即调用 `ask_user(reply=..., interaction=...)`。",
         ]
     )
     return "\n".join(lines)
