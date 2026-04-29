@@ -1,5 +1,4 @@
 import time
-from contextvars import ContextVar
 from typing import Any, Dict, Optional
 
 import httpx
@@ -8,10 +7,7 @@ from app.config.config import settings
 from app.config.logging import get_logger
 from app.config.redis import get_redis_client
 from app.config.redis_keys import SCRM_RATE_LIMIT_KEY
-
-REQUEST_ACCESS_TOKEN_CTX: ContextVar[Optional[str]] = ContextVar("access_token", default=None)
-REQUEST_USER_ID_CTX: ContextVar[Optional[str]] = ContextVar("user_id", default=None)
-REQUEST_THREAD_ID_CTX: ContextVar[Optional[str]] = ContextVar("thread_id", default=None)
+from app.agents.tools.business.execution_context import REQUEST_ACCESS_TOKEN_CTX, REQUEST_USER_ID_CTX
 
 logger = get_logger("scrm_client")
 _SCRM_RATE_LIMIT_PER_MIN = 30

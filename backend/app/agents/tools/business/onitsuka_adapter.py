@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, List, Tuple
 
-from app.agents.execution_context import get_execution_context
+from app.agents.tools.business.execution_context import get_business_execution_context
 from app.models.display_product import DisplayProductCard
 
 _MAX_PRODUCTS_FOR_LLM = 8
@@ -50,7 +50,7 @@ def _product_card_cache_key(product_id: Any, color_id: Any) -> Tuple[str, str, i
         return None
     if not pid or not cid:
         return None
-    context = get_execution_context()
+    context = get_business_execution_context()
     return (context["thread_id"], context["user_id"], pid, cid)
 
 

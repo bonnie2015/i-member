@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from langgraph.types import interrupt as graph_interrupt
 from pydantic import BaseModel, Field
 
-from app.agents.execution_context import get_execution_context
+from app.agents.tools.business.execution_context import get_business_execution_context
 from app.agents.tools.business.onitsuka_adapter import hydrate_display_products
 from app.config.logging import get_logger
 from app.models.display_product import DisplayProductCard
@@ -142,7 +142,7 @@ def reply_with_products_tool(
         for item in list(products or [])
     ]
     normalized_products = hydrate_display_products(product_refs)
-    context = get_execution_context()
+    context = get_business_execution_context()
     logger.info(
         "[reply_with_products] thread_id=%s user_id=%s requested=%s hydrated=%s",
         context["thread_id"],
