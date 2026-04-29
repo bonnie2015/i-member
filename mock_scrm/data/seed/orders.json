@@ -1,0 +1,295 @@
+[
+  {
+    "order_id": "N20260501000088",
+    "user_id": "api_ticket_probe",
+    "status": "shipping",
+    "status_label": "运输中，未签收",
+    "amount": 6930,
+    "items_summary": "男士休闲西装夹克 / MEXICO 66 SD 休闲鞋 / MEXICO 66 SD VIN 休闲鞋",
+    "created_at": "2026-05-01T09:18:00+08:00",
+    "paid_at": "2026-05-01T09:20:00+08:00",
+    "source_channel": "app",
+    "receiver_city": "上海市",
+    "logistics": {
+      "company": "顺丰速运",
+      "tracking_no": "SF202605010088",
+      "status": "in_transit",
+      "status_label": "运输中",
+      "latest_trace": "快件已从上海转运中心发出",
+      "latest_trace_time": "2026-05-01T13:40:00+08:00",
+      "estimated_delivery_time": "2026-05-02T18:00:00+08:00",
+      "signed_at": null
+    },
+    "items": [
+      {
+        "order_item_id": "OI202605010001",
+        "product_id": 80477,
+        "color_id": 5478,
+        "sku_id": "6942611062814",
+        "style": "2181B161-201",
+        "size": "S",
+        "name": "男士休闲西装夹克 褐灰色",
+        "qty": 1,
+        "price": 4250,
+        "image": "https://assetsprod.onitsukatiger.com/goods/2181B161-201/2181B161-201-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/80477-5478"
+      },
+      {
+        "order_item_id": "OI202605010002",
+        "product_id": 56077,
+        "color_id": 19186,
+        "sku_id": "6922875408375",
+        "style": "1183A872-204",
+        "size": "36",
+        "name": "MEXICO 66 SD 休闲鞋 棕色",
+        "qty": 1,
+        "price": 1290,
+        "image": "https://assetsprod.onitsukatiger.com/goods/1183A872-204/1183A872-204-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/56077-19186"
+      },
+      {
+        "order_item_id": "OI202605010003",
+        "product_id": 46730,
+        "color_id": 5508,
+        "sku_id": "6942439509256",
+        "style": "1183C015-104",
+        "size": "36",
+        "name": "MEXICO 66 SD VIN 休闲鞋 白色/蓝色",
+        "qty": 1,
+        "price": 1390,
+        "image": "https://assetsprod.onitsukatiger.com/goods/1183C015-104/1183C015-104-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/46730-5508"
+      }
+    ]
+  },
+  {
+    "order_id": "N20260430000057",
+    "user_id": "api_ticket_probe",
+    "status": "paid",
+    "status_label": "已付款，待发货",
+    "amount": 1290,
+    "items_summary": "MEXICO 66 SD 休闲鞋",
+    "created_at": "2026-04-30T20:45:00+08:00",
+    "paid_at": "2026-04-30T20:46:00+08:00",
+    "source_channel": "wechat",
+    "receiver_city": "杭州市",
+    "items": [
+      {
+        "order_item_id": "OI202604300001",
+        "product_id": 56077,
+        "color_id": 19297,
+        "sku_id": "6936780192786",
+        "style": "1183A872-255",
+        "size": "36",
+        "name": "MEXICO 66 SD 休闲鞋 米色/黑色",
+        "qty": 1,
+        "price": 1290,
+        "image": "https://assetsprod.onitsukatiger.com/goods/1183A872-255/1183A872-255-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/56077-19297"
+      }
+    ]
+  },
+  {
+    "order_id": "N20260428000021",
+    "user_id": "api_ticket_probe",
+    "status": "delivering",
+    "status_label": "派送中，未签收",
+    "amount": 1390,
+    "items_summary": "MEXICO 66 SD VIN 休闲鞋",
+    "created_at": "2026-04-28T11:10:00+08:00",
+    "paid_at": "2026-04-28T11:12:00+08:00",
+    "source_channel": "store",
+    "receiver_city": "苏州市",
+    "logistics": {
+      "company": "京东物流",
+      "tracking_no": "JD202604280021",
+      "status": "delivering",
+      "status_label": "派送中",
+      "latest_trace": "快件正在派送，请保持电话畅通",
+      "latest_trace_time": "2026-05-01T08:55:00+08:00",
+      "estimated_delivery_time": "2026-05-01T20:00:00+08:00",
+      "signed_at": null
+    },
+    "items": [
+      {
+        "order_item_id": "OI202604280001",
+        "product_id": 46730,
+        "color_id": 5557,
+        "sku_id": "6936780194384",
+        "style": "1183C015-205",
+        "size": "36",
+        "name": "MEXICO 66 SD VIN 休闲鞋 咖啡色",
+        "qty": 1,
+        "price": 1390,
+        "image": "https://assetsprod.onitsukatiger.com/goods/1183C015-205/1183C015-205-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/46730-5557"
+      }
+    ]
+  },
+  {
+    "order_id": "N20260412000019",
+    "user_id": "api_ticket_probe",
+    "status": "after_sale",
+    "status_label": "售后处理中",
+    "amount": 7540,
+    "items_summary": "男士双排扣西装外套 / 女士西装马甲",
+    "created_at": "2026-04-12T14:06:00+08:00",
+    "paid_at": "2026-04-12T14:07:00+08:00",
+    "source_channel": "app",
+    "receiver_city": "上海市",
+    "items": [
+      {
+        "order_item_id": "OI202604120001",
+        "product_id": 80496,
+        "color_id": 5463,
+        "sku_id": "81020",
+        "style": "2181B160-401",
+        "size": "M",
+        "name": "男士双排扣西装外套 深蓝色",
+        "qty": 1,
+        "price": 4550,
+        "image": "https://assetsprod.onitsukatiger.com/goods/2181B160-401/2181B160-401-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/80496-5463"
+      },
+      {
+        "order_item_id": "OI202604120002",
+        "product_id": 80493,
+        "color_id": 5461,
+        "sku_id": "81087",
+        "style": "2181B169-700",
+        "size": "M",
+        "name": "男士防风外套 橘色",
+        "qty": 1,
+        "price": 2990,
+        "image": "https://assetsprod.onitsukatiger.com/goods/2181B169-700/2181B169-700-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/80493-5461"
+      }
+    ]
+  },
+  {
+    "order_id": "N20260326000045",
+    "user_id": "api_ticket_probe",
+    "status": "canceled",
+    "status_label": "已取消",
+    "amount": 1990,
+    "items_summary": "女士西装马甲",
+    "created_at": "2026-03-26T22:16:00+08:00",
+    "closed_at": "2026-03-26T22:46:00+08:00",
+    "source_channel": "app",
+    "receiver_city": "南京市",
+    "cancel_reason": "超时未支付",
+    "items": [
+      {
+        "order_item_id": "OI202603260001",
+        "product_id": 80489,
+        "color_id": 5478,
+        "sku_id": "81046",
+        "style": "2182B602-201",
+        "size": "M",
+        "name": "女士西装马甲 褐灰色",
+        "qty": 1,
+        "price": 1990,
+        "image": "https://assetsprod.onitsukatiger.com/goods/2182B602-201/2182B602-201-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/80489-5478"
+      }
+    ]
+  },
+  {
+    "order_id": "N20260305000012",
+    "user_id": "api_ticket_probe",
+    "status": "delivered",
+    "status_label": "已签收",
+    "amount": 5540,
+    "items_summary": "男士休闲西装夹克 / MEXICO 66 SD 休闲鞋",
+    "created_at": "2026-03-05T10:00:00+08:00",
+    "paid_at": "2026-03-05T10:02:00+08:00",
+    "signed_at": "2026-03-08T16:30:00+08:00",
+    "source_channel": "app",
+    "receiver_city": "上海市",
+    "items": [
+      {
+        "order_item_id": "OI202603050001",
+        "product_id": 80477,
+        "color_id": 5478,
+        "sku_id": "6942611062814",
+        "style": "2181B161-201",
+        "size": "S",
+        "name": "男士休闲西装夹克 褐灰色",
+        "qty": 1,
+        "price": 4250,
+        "image": "https://assetsprod.onitsukatiger.com/goods/2181B161-201/2181B161-201-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/80477-5478"
+      },
+      {
+        "order_item_id": "OI202603050002",
+        "product_id": 56077,
+        "color_id": 19297,
+        "sku_id": "6936780192786",
+        "style": "1183A872-255",
+        "size": "36",
+        "name": "MEXICO 66 SD 休闲鞋 米色/黑色",
+        "qty": 1,
+        "price": 1290,
+        "image": "https://assetsprod.onitsukatiger.com/goods/1183A872-255/1183A872-255-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/56077-19297"
+      }
+    ]
+  },
+  {
+    "order_id": "N20260306000034",
+    "user_id": "api_ticket_probe",
+    "status": "delivered",
+    "status_label": "已签收",
+    "amount": 1290,
+    "items_summary": "MEXICO 66 SD 休闲鞋",
+    "created_at": "2026-03-06T09:30:00+08:00",
+    "paid_at": "2026-03-06T09:31:00+08:00",
+    "signed_at": "2026-03-09T12:10:00+08:00",
+    "source_channel": "wechat",
+    "receiver_city": "上海市",
+    "items": [
+      {
+        "order_item_id": "OI202603060001",
+        "product_id": 56077,
+        "color_id": 19186,
+        "sku_id": "6922875408375",
+        "style": "1183A872-204",
+        "size": "36",
+        "name": "MEXICO 66 SD 休闲鞋 棕色",
+        "qty": 1,
+        "price": 1290,
+        "image": "https://assetsprod.onitsukatiger.com/goods/1183A872-204/1183A872-204-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/56077-19186"
+      }
+    ]
+  },
+  {
+    "order_id": "N20260214000009",
+    "user_id": "api_ticket_probe",
+    "status": "refunded",
+    "status_label": "已退款",
+    "amount": 1390,
+    "items_summary": "MEXICO 66 SD VIN 休闲鞋",
+    "created_at": "2026-02-14T16:22:00+08:00",
+    "paid_at": "2026-02-14T16:23:00+08:00",
+    "refunded_at": "2026-02-18T10:30:00+08:00",
+    "source_channel": "tmall",
+    "receiver_city": "上海市",
+    "refund_reason": "七天无理由退货",
+    "items": [
+      {
+        "order_item_id": "OI202602140001",
+        "product_id": 46730,
+        "color_id": 5508,
+        "sku_id": "6942439509256",
+        "style": "1183C015-104",
+        "size": "36",
+        "name": "MEXICO 66 SD VIN 休闲鞋 白色/蓝色",
+        "qty": 1,
+        "price": 1390,
+        "image": "https://assetsprod.onitsukatiger.com/goods/1183C015-104/1183C015-104-1.jpg?x-oss-process=style/thumb&v=2026050100-2026050107",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/46730-5508"
+      }
+    ]
+  }
+]

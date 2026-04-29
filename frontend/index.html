@@ -48,6 +48,10 @@
                     </div>
 
                     <div class="chat-header-actions">
+                        <div class="view-tabs" role="tablist" aria-label="视图切换">
+                            <button class="view-tab active" id="chatTabBtn" type="button" role="tab" aria-selected="true" aria-controls="chatView">对话</button>
+                            <button class="view-tab" id="mockTabBtn" type="button" role="tab" aria-selected="false" aria-controls="mockDataView">Mock 数据</button>
+                        </div>
                         <button class="new-chat-btn" id="newChatBtn" title="新对话" aria-label="新对话">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -57,7 +61,7 @@
                     </div>
                 </header>
 
-                <section class="conversation-shell">
+                <section class="conversation-shell" id="chatView">
                     <div class="messages" id="messages">
                         <div class="welcome-msg">
                             <div class="welcome-avatar">BP</div>
@@ -98,7 +102,54 @@
                         </div>
                     </div>
                 </section>
+
+                <section class="mock-data-shell hidden" id="mockDataView">
+                    <div class="mock-data-head">
+                        <div>
+                            <div class="mock-data-kicker">SCRM MOCK</div>
+                            <h2 class="mock-data-title">当前模拟数据</h2>
+                        </div>
+                        <div class="mock-data-actions">
+                            <button class="mock-action-btn" id="mockRefreshBtn" type="button">刷新</button>
+                            <button class="mock-action-btn mock-action-secondary" id="mockResetBtn" type="button">重置</button>
+                        </div>
+                    </div>
+                    <div class="mock-status" id="mockStatus">尚未加载</div>
+                    <div class="mock-summary-grid" id="mockSummaryGrid"></div>
+                    <div class="mock-data-grid">
+                        <section class="mock-section mock-section-orders">
+                            <div class="mock-section-head">
+                                <h3>订单</h3>
+                                <span id="mockOrderCount"></span>
+                            </div>
+                            <div class="mock-list" id="mockOrders"></div>
+                        </section>
+                        <div class="mock-side-column">
+                            <section class="mock-section">
+                                <div class="mock-section-head">
+                                    <h3>用户与积分</h3>
+                                </div>
+                                <div class="mock-list" id="mockUserPanel"></div>
+                            </section>
+                            <section class="mock-section">
+                                <div class="mock-section-head">
+                                    <h3>工单</h3>
+                                    <span id="mockTicketCount"></span>
+                                </div>
+                                <div class="mock-list" id="mockTickets"></div>
+                            </section>
+                        </div>
+                    </div>
+                </section>
             </main>
+
+            <div class="mock-modal hidden" id="mockTicketModal" aria-hidden="true">
+                <div class="mock-modal-backdrop" id="mockTicketModalBackdrop"></div>
+                <section class="mock-modal-panel" role="dialog" aria-modal="true" aria-labelledby="mockTicketModalTitle">
+                    <button class="mock-modal-close" id="mockTicketModalClose" type="button" aria-label="关闭">×</button>
+                    <div id="mockTicketModalContent"></div>
+                </section>
+            </div>
         </div>
     </div>
 

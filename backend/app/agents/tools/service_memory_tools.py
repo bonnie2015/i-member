@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
 from app.agents.memory.service_memory import (
-    load_last_service_memory,
     load_recent_service_memories_limited,
-    load_service_messages_limited,
 )
 from app.agents.tools.business.execution_context import REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
 from app.config.logging import get_logger
@@ -16,20 +14,18 @@ from app.config.logging import get_logger
 logger = get_logger("service_memory_tools")
 
 _MAX_SERVICE_MEMORY_LIMIT = 5
-_MAX_SERVICE_MESSAGES_LIMIT = 50
 
 
 class GetServiceMemoriesInput(BaseModel):
     limit: int = Field(default=1, ge=1, le=_MAX_SERVICE_MEMORY_LIMIT, description="查询最近几条服务记忆，默认 1，最大 5。")
-
-
-class GetServiceMessagesInput(BaseModel):
-    messages_ref: Optional[str] = Field(
+    service_type: Optional[Literal["ticket", "recommend", "qa"]] = Field(
         default=None,
-        description="服务消息归档引用；为空时默认读取当前线程最近一次服务的原始消息。",
+        description="可选服务类型过滤；不传则查询全部类型。支持 ticket、recommend、qa。",
     )
-    offset: int = Field(default=0, ge=0, description="消息起始偏移，默认 0。")
-    limit: int = Field(default=20, ge=1, le=_MAX_SERVICE_MESSAGES_LIMIT, description="返回消息条数，默认 20，最大 50。")
+    include_payload: bool = Field(
+        default=False,
+        description="是否返回完整 payload。默认 false，只返回 summary 和基础元信息；确实需要完整数据时才设为 true。",
+    )
 
 
 def _current_identity() -> tuple[str, str] | None:
@@ -54,14 +50,34 @@ def _not_found_error(kind: str) -> Dict[str, Any]:
     }
 
 
+def _compact_service_memory(item: Dict[str, Any], *, include_payload: bool = False) -> Dict[str, Any]:
+    compacted = {
+        "service_id": item.get("service_id"),
+        "service_type": item.get("service_type"),
+        "thread_id": item.get("thread_id"),
+        "started_at": item.get("started_at"),
+        "ended_at": item.get("ended_at"),
+        "summary": item.get("summary") or "",
+    }
+    if include_payload:
+        compacted["payload"] = item.get("payload") or {}
+    return {key: value for key, value in compacted.items() if value not in (None, "") or key == "summary"}
+
+
 @tool("get_service_memories", args_schema=GetServiceMemoriesInput)
-async def get_service_memories_tool(limit: int = 1) -> Dict[str, Any]:
-    """查询当前线程最近 N 条完整服务记忆。
+async def get_service_memories_tool(
+    limit: int = 1,
+    service_type: Optional[Literal["ticket", "recommend", "qa"]] = None,
+    include_payload: bool = False,
+) -> Dict[str, Any]:
+    """查询当前线程最近 N 条服务记忆。
 
     仅在现有信息无法确定用户具体要求，或缺少与历史服务有关的数据，判断非常有必要对历史服务记录进行查找时，才调用此工具。
 
     参数:
         limit: 查询最近几条服务记忆，默认 1，最大 5
+        service_type: 可选服务类型过滤，支持 ticket、recommend、qa
+        include_payload: 是否返回完整 payload，默认 false
 
     返回:
         items: 服务记忆列表
@@ -73,12 +89,18 @@ async def get_service_memories_tool(limit: int = 1) -> Dict[str, Any]:
 
     user_id, thread_id = identity
     try:
-        items = await load_recent_service_memories_limited(user_id, thread_id, limit=limit)
+        items = await load_recent_service_memories_limited(
+            user_id,
+            thread_id,
+            limit=limit,
+            service_type=service_type,
+        )
         if not items:
             return _not_found_error("service memory")
         return {
-            "items": items,
+            "items": [_compact_service_memory(item, include_payload=include_payload) for item in items],
             "count": len(items),
+            "include_payload": include_payload,
         }
     except Exception as e:
         logger.warning("[service_memory_tools] load recent service memories failed: %s", e)
@@ -88,69 +110,8 @@ async def get_service_memories_tool(limit: int = 1) -> Dict[str, Any]:
         }
 
 
-@tool("get_service_messages", args_schema=GetServiceMessagesInput)
-async def get_service_messages_tool(
-    messages_ref: Optional[str] = None,
-    offset: int = 0,
-    limit: int = 20,
-) -> Dict[str, Any]:
-    """查询指定服务或当前线程最近一次服务的原始消息，可按 offset/limit 裁剪。
-
-    仅在现有信息无法确定用户具体要求，或缺少与历史服务有关的数据，判断非常有必要对历史服务记录进行查找时，才调用此工具。
-
-    参数:
-        messages_ref: 服务消息归档引用（可选），为空时默认读取当前线程最近一次服务的原始消息
-        offset: 消息起始偏移，默认 0
-        limit: 返回消息条数，默认 20，最大 50
-
-    返回:
-        messages_ref: 服务消息归档引用
-        offset: 消息起始偏移
-        limit: 返回消息条数
-        count: 实际返回条数
-        messages: 消息列表
-    """
-    identity = _current_identity()
-    if identity is None:
-        return _missing_context_error()
-
-    user_id, thread_id = identity
-    resolved_messages_ref = str(messages_ref or "").strip()
-    try:
-        if not resolved_messages_ref:
-            service_memory = await load_last_service_memory(user_id, thread_id)
-            if not isinstance(service_memory, dict) or not service_memory:
-                return _not_found_error("service memory")
-            resolved_messages_ref = str(service_memory.get("messages_ref") or "").strip()
-
-        if not resolved_messages_ref:
-            return _not_found_error("service messages")
-
-        messages = await load_service_messages_limited(
-            resolved_messages_ref,
-            offset=offset,
-            limit=limit,
-        )
-        if not messages:
-            return _not_found_error("service messages")
-        return {
-            "messages_ref": resolved_messages_ref,
-            "offset": offset,
-            "limit": limit,
-            "count": len(messages),
-            "messages": messages,
-        }
-    except Exception as e:
-        logger.warning("[service_memory_tools] load service messages failed: %s", e)
-        return {
-            "error": str(e),
-            "error_code": "SERVICE_MESSAGES_LOAD_FAILED",
-        }
-
-
 TOOLS: List[BaseTool] = [
     get_service_memories_tool,
-    get_service_messages_tool,
 ]
 
 

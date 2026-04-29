@@ -10,9 +10,7 @@ from pydantic import BaseModel, Field
 from app.agents.tools.business.execution_context import get_business_execution_context
 from app.agents.tools.business.onitsuka_adapter import (
     adapt_product_detail,
-    cache_display_products,
     get_cached_default_color,
-    llm_candidate_products,
     summarize_product,
     visible_products,
 )
@@ -153,8 +151,9 @@ class SearchByIntentInput(BaseModel):
     price: PriceFilterValue = Field(
         default="",
         description=(
-            "会影响搜索结果的过滤条件。仅在用户本轮明确预算或价格区间时填写；未明确则空字符串。"
-            "不要从历史偏好、用户画像或商品详情中擅自补充。搜索不理想时，可尝试放宽价格过滤，但回复中要说明。"
+            "会影响搜索结果的过滤条件。用户对价格、预算敏感时灵活运用；"
+            "也可以用 sort=price:asc 从低价优先检索。不要从长期偏好或用户画像中擅自补充预算；"
+            "若价格过滤导致结果过少，可放宽价格过滤但回复中要说明。"
         ),
     )
     category: CategoryValue = Field(
@@ -193,6 +192,7 @@ class SearchByIntentInput(BaseModel):
         description=(
             "排序，在用户有新品、热销、价格要求时，必须积极运用排序工具帮助提升搜索准确度。用户说新款、最近上新、有没有新品、看看最新款时填 new；"
             "用户说热销、热门、卖得好时填 sales；用户要求便宜优先/从低到高填 price:asc；"
+            "用户说贵了点/还是贵/便宜点/预算有限/性价比高，也应优先考虑 price:asc；"
             "用户要求贵一点/从高到低填 price:desc；没有排序意图才留空。sort 本身就是有效搜索参数，用户只问新品/最新时可以只传 sort=new。"
         ),
     )
@@ -560,7 +560,7 @@ def _source_filters_for_where(where: Dict[str, Any], requested_params: Dict[str,
     return source_filters
 
 
-def _build_product_match_note(
+def _build_product_cursor(
     *,
     source_query: str,
     source_filters: Dict[str, Any],
@@ -580,6 +580,18 @@ def _build_product_match_note(
     }
 
 
+def _build_product_search_result(
+    *,
+    products: List[Dict[str, Any]],
+    total_found: int,
+) -> Dict[str, Any]:
+    display_products = visible_products(products, limit=_RESULT_LIMIT)
+    return {
+        "products": display_products,
+        "total_found": total_found,
+    }
+
+
 def _full_where_payload(where: Dict[str, Any]) -> Dict[str, str]:
     payload = {key: "" for key in ("gender", "size", "color", "price")}
     for key, value in dict(where or {}).items():
@@ -595,7 +607,7 @@ async def _run_list_products(
     requested_params: Dict[str, Any] | None = None,
     page: int = _DEFAULT_PAGE,
     page_size: int = _LIST_QUERY_LIMIT,
-) -> tuple[List[Dict[str, Any]], SearchPath, Dict[str, str], int]:
+) -> tuple[List[Dict[str, Any]], SearchPath, Dict[str, str], int, Dict[str, Any]]:
     context = get_business_execution_context()
     normalized_requested_params = requested_params if isinstance(requested_params, dict) else {}
     list_sort = normalize_sort(sort, default="new") or "new"
@@ -617,13 +629,13 @@ async def _run_list_products(
             page,
             result.get("error_code") or result.get("error"),
         )
-        return [], {"stage": "list_all", "query": ""}, dict(where or {}), 0
+        return [], {"stage": "list_all", "query": ""}, dict(where or {}), 0, {}
 
     data = result.get("data") or {}
     products = [summarize_product(item) for item in list(data.get("list") or []) if isinstance(item, dict)]
     total = int(data.get("total", 0) or 0)
     source_filters = _source_filters_for_where(where, normalized_requested_params)
-    match_note = _build_product_match_note(
+    cursor = _build_product_cursor(
         source_query="全部商品",
         source_filters=source_filters,
         sort=list_sort,
@@ -631,8 +643,6 @@ async def _run_list_products(
         page_size=page_size,
         next_cursor="",
     )
-    for product in products:
-        product["match_note"] = match_note
     logger.info(
         "[onitsuka_search] thread_id=%s user_id=%s stage=list_all total=%s products=%s filters=%s sort=%s page=%s",
         context["thread_id"],
@@ -643,7 +653,7 @@ async def _run_list_products(
         list_sort,
         page,
     )
-    return products, {"stage": "list_all", "query": ""}, dict(where or {}), total
+    return products, {"stage": "list_all", "query": ""}, dict(where or {}), total, cursor
 
 
 async def _run_search_paths(
@@ -654,13 +664,13 @@ async def _run_search_paths(
     requested_params: Dict[str, Any] | None = None,
     page: int = _DEFAULT_PAGE,
     page_size: int = _QUERY_LIMIT,
-) -> tuple[List[Dict[str, Any]], SearchPath | None, Dict[str, str], int]:
+) -> tuple[List[Dict[str, Any]], SearchPath | None, Dict[str, str], int, Dict[str, Any]]:
     context = get_business_execution_context()
     normalized_requested_params = requested_params if isinstance(requested_params, dict) else {}
     for path in paths:
         for where in where_variants:
             if path.get("stage") == "filter_only":
-                products, selected_path, selected_where, total = await _run_list_products(
+                products, selected_path, selected_where, total, cursor = await _run_list_products(
                     where=where,
                     sort=sort,
                     requested_params=normalized_requested_params,
@@ -668,7 +678,7 @@ async def _run_search_paths(
                     page_size=_LIST_QUERY_LIMIT,
                 )
                 if products:
-                    return products, selected_path, selected_where, total
+                    return products, selected_path, selected_where, total, cursor
                 continue
             result = await search_products(
                 keyword=path["query"],
@@ -704,7 +714,7 @@ async def _run_search_paths(
                 source_query=source_query,
                 source_filters=source_filters,
             )
-            match_note = _build_product_match_note(
+            cursor = _build_product_cursor(
                 source_query=source_query,
                 source_filters=source_filters,
                 sort=sort,
@@ -712,8 +722,6 @@ async def _run_search_paths(
                 page_size=page_size,
                 next_cursor=next_cursor,
             )
-            for product in products:
-                product["match_note"] = match_note
             logger.info(
                 "[onitsuka_search] thread_id=%s user_id=%s stage=%s query=%s total=%s products=%s filters=%s page=%s",
                 context["thread_id"],
@@ -726,8 +734,8 @@ async def _run_search_paths(
                 page,
             )
             if products:
-                return products, dict(path), dict(where or {}), total
-    return [], None, {}, 0
+                return products, dict(path), dict(where or {}), total, cursor
+    return [], None, {}, 0, {}
 
 
 async def _run_cursor_page(cursor_payload: CursorPayload) -> Dict[str, Any]:
@@ -761,7 +769,7 @@ async def _run_cursor_page(cursor_payload: CursorPayload) -> Dict[str, Any]:
         source_query=source_query,
         source_filters=source_filters,
     )
-    match_note = _build_product_match_note(
+    cursor = _build_product_cursor(
         source_query=source_query,
         source_filters=source_filters,
         sort=sort,
@@ -769,15 +777,9 @@ async def _run_cursor_page(cursor_payload: CursorPayload) -> Dict[str, Any]:
         page_size=page_size,
         next_cursor=next_cursor,
     )
-    for product in found_products:
-        product["match_note"] = match_note
-    display_products = visible_products(found_products, limit=_RESULT_LIMIT)
-    cache_display_products(display_products)
-    products = llm_candidate_products(found_products, limit=_RESULT_LIMIT)
-    return {
-        "products": products,
-        "total_found": total_found,
-    }
+    result_payload = _build_product_search_result(products=found_products, total_found=total_found)
+    result_payload["cursor"] = cursor
+    return result_payload
 
 
 @tool(
@@ -791,7 +793,8 @@ async def _run_cursor_page(cursor_payload: CursorPayload) -> Dict[str, Any]:
         "For new arrivals/latest products, passing only sort='new' is valid and should browse latest products. "
         "If the user asks to browse all products or gives no usable search condition, call with empty category/keyword/filters and an explicit sort when needed. "
         "Reuse next_cursor verbatim for pagination. "
-        "Returns products and total_found."
+        "Returns products, total_found, and cursor. "
+        "cursor describes the whole returned batch, not a single product."
     ),
 )
 async def onitsuka_search_products_hybrid(
@@ -859,7 +862,7 @@ async def onitsuka_search_products_hybrid(
         fallback_paths,
     )
 
-    found_products, selected_path, selected_where, total_found = await _run_search_paths(
+    found_products, selected_path, selected_where, total_found, result_cursor = await _run_search_paths(
         paths=primary_paths,
         where_variants=where_variants,
         sort=normalized_sort,
@@ -872,28 +875,24 @@ async def onitsuka_search_products_hybrid(
             context["user_id"],
             fallback_paths,
         )
-        found_products, selected_path, selected_where, total_found = await _run_search_paths(
+        found_products, selected_path, selected_where, total_found, result_cursor = await _run_search_paths(
             paths=fallback_paths,
             where_variants=where_variants,
             sort=normalized_sort,
             requested_params=requested_params,
         )
 
-    display_products = visible_products(found_products, limit=_RESULT_LIMIT)
-    cache_display_products(display_products)
-    products = llm_candidate_products(found_products, limit=_RESULT_LIMIT)
+    result = _build_product_search_result(products=found_products, total_found=total_found)
+    result["cursor"] = result_cursor
     logger.info(
         "[onitsuka_search] thread_id=%s user_id=%s returned=%s total_found=%s selected_path=%s",
         context["thread_id"],
         context["user_id"],
-        len(products),
+        len(result["products"]),
         total_found,
         selected_path,
     )
-    return {
-        "products": products,
-        "total_found": total_found,
-    }
+    return result
 
 
 @tool("onitsuka_get_product_detail", args_schema=GetOnitsukaProductDetailInput)

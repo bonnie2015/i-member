@@ -1,0 +1,194 @@
+[
+  {
+    "ticket_id": "TK202605010004",
+    "ticket_type": "logistics",
+    "status": "open",
+    "status_label": "待处理",
+    "title": "多商品订单未签收咨询",
+    "content": "用户询问多件商品是否会分包裹送达，当前订单仍未签收。",
+    "description": "订单包含三件商品，物流显示运输中，用户希望确认预计送达时间。",
+    "images": [],
+    "order_id": "N20260501000088",
+    "order_item_id": null,
+    "source_channel": "app",
+    "latest_progress": "等待客服确认物流信息",
+    "expected_finish_time": "2026-05-02T18:00:00+08:00",
+    "created_at": "2026-05-01T14:05:00+08:00",
+    "timeline": [
+      {
+        "time": "2026-05-01T14:05:00+08:00",
+        "action": "工单创建",
+        "operator": "system"
+      }
+    ]
+  },
+  {
+    "ticket_id": "TK202604300003",
+    "ticket_type": "delivery",
+    "status": "processing",
+    "status_label": "处理中",
+    "title": "派送中未收到电话",
+    "content": "用户反馈物流显示派送中，但一直没有收到配送电话。",
+    "description": "订单预计今日送达，用户担心无法正常签收。",
+    "images": [],
+    "order_id": "N20260428000021",
+    "order_item_id": "OI202604280001",
+    "source_channel": "wechat",
+    "latest_progress": "已转物流客服核实",
+    "expected_finish_time": "2026-05-01T20:00:00+08:00",
+    "created_at": "2026-04-30T18:22:00+08:00",
+    "timeline": [
+      {
+        "time": "2026-04-30T18:22:00+08:00",
+        "action": "工单创建",
+        "operator": "system"
+      },
+      {
+        "time": "2026-05-01T09:10:00+08:00",
+        "action": "转物流客服",
+        "operator": "agent"
+      }
+    ]
+  },
+  {
+    "ticket_id": "TK202604150001",
+    "ticket_type": "quality",
+    "status": "processing",
+    "status_label": "处理中",
+    "title": "男士休闲西装夹克纽扣松动",
+    "content": "用户反馈夹克纽扣松动，希望申请售后。",
+    "description": "褐灰色男士休闲西装夹克上身试穿后发现袖口纽扣松动，影响正常穿着。",
+    "images": [
+      "https://mock.local/evidence/mexico66-closeup.png",
+      "https://mock.local/evidence/mexico66-body.png",
+      "https://mock.local/evidence/order-label.png"
+    ],
+    "order_id": "N20260305000012",
+    "order_item_id": "OI202603050001",
+    "source_channel": "app",
+    "latest_progress": "已进入质检审核",
+    "expected_finish_time": "2026-04-20T18:00:00+08:00",
+    "created_at": "2026-04-15T11:00:00+08:00",
+    "timeline": [
+      {
+        "time": "2026-04-15T11:00:00+08:00",
+        "action": "工单创建",
+        "operator": "system"
+      },
+      {
+        "time": "2026-04-16T10:00:00+08:00",
+        "action": "进入质检审核",
+        "operator": "agent"
+      }
+    ]
+  },
+  {
+    "ticket_id": "TK202604160002",
+    "ticket_type": "exchange",
+    "status": "open",
+    "status_label": "待处理",
+    "title": "MEXICO 66 尺码换货咨询",
+    "content": "用户反馈尺码偏小，等待进一步确认。",
+    "description": "试穿后觉得偏小，希望换大半码。",
+    "images": [],
+    "order_id": "N20260305000012",
+    "order_item_id": "OI202603050002",
+    "source_channel": "app",
+    "latest_progress": "等待客服确认",
+    "expected_finish_time": "2026-04-22T18:00:00+08:00",
+    "created_at": "2026-04-16T15:20:00+08:00",
+    "timeline": [
+      {
+        "time": "2026-04-16T15:20:00+08:00",
+        "action": "工单创建",
+        "operator": "system"
+      }
+    ]
+  },
+  {
+    "ticket_id": "TK202604120001",
+    "ticket_type": "refund",
+    "status": "processing",
+    "status_label": "售后处理中",
+    "title": "男士双排扣西装外套外包装破损退货",
+    "content": "用户收到商品后发现外包装挤压严重，希望退货。",
+    "description": "商品本体无明显破损，但用户作为礼物购买，对外包装有要求。",
+    "images": [
+      "https://mock.local/evidence/delecity-box-1.png"
+    ],
+    "order_id": "N20260412000019",
+    "order_item_id": "OI202604120001",
+    "source_channel": "app",
+    "latest_progress": "已生成退货地址，等待寄回",
+    "expected_finish_time": "2026-04-18T18:00:00+08:00",
+    "created_at": "2026-04-12T18:40:00+08:00",
+    "timeline": [
+      {
+        "time": "2026-04-12T18:40:00+08:00",
+        "action": "工单创建",
+        "operator": "system"
+      },
+      {
+        "time": "2026-04-13T10:15:00+08:00",
+        "action": "退货审核通过",
+        "operator": "agent"
+      }
+    ]
+  },
+  {
+    "ticket_id": "TK202603260001",
+    "ticket_type": "payment",
+    "status": "closed",
+    "status_label": "已关闭",
+    "title": "取消订单后优惠券返还",
+    "content": "用户询问取消订单后优惠券是否会自动返还。",
+    "description": "订单因超时未支付取消，优惠券已在 30 分钟内返还。",
+    "images": [],
+    "order_id": "N20260326000045",
+    "order_item_id": "OI202603260001",
+    "source_channel": "app",
+    "latest_progress": "已解释优惠券返还规则",
+    "expected_finish_time": "2026-03-27T18:00:00+08:00",
+    "created_at": "2026-03-26T23:05:00+08:00",
+    "timeline": [
+      {
+        "time": "2026-03-26T23:05:00+08:00",
+        "action": "工单创建",
+        "operator": "system"
+      },
+      {
+        "time": "2026-03-26T23:20:00+08:00",
+        "action": "客服回复并关闭",
+        "operator": "agent"
+      }
+    ]
+  },
+  {
+    "ticket_id": "TK202602180001",
+    "ticket_type": "refund",
+    "status": "closed",
+    "status_label": "已完结",
+    "title": "退款到账时间咨询",
+    "content": "用户咨询退款已审核后多久到账。",
+    "description": "退款已原路退回，支付渠道预计 1-3 个工作日到账。",
+    "images": [],
+    "order_id": "N20260214000009",
+    "order_item_id": "OI202602140001",
+    "source_channel": "tmall",
+    "latest_progress": "退款已完成",
+    "expected_finish_time": "2026-02-20T18:00:00+08:00",
+    "created_at": "2026-02-18T11:12:00+08:00",
+    "timeline": [
+      {
+        "time": "2026-02-18T11:12:00+08:00",
+        "action": "工单创建",
+        "operator": "system"
+      },
+      {
+        "time": "2026-02-18T16:30:00+08:00",
+        "action": "退款到账说明",
+        "operator": "agent"
+      }
+    ]
+  }
+]

@@ -10,7 +10,9 @@ from pydantic import BaseModel, Field, ValidationError
 from app.config.logging import get_logger
 from app.models.interaction import InteractionPayload
 from app.workflow.state import AgentState
-from app.workflow.nodes.post_process.post_process import post_process_node
+from app.workflow.nodes.post_process.post_process import (
+    spawn_post_process_tasks,
+)
 from app.workflow.nodes.router.router import router_condition, router_node
 from app.workflow.nodes.qa.qa import qa_node
 from app.workflow.nodes.recommend.graph import get_recommend_workflow
@@ -21,6 +23,32 @@ workflow = None  # 由 lifespan 初始化
 _LANGGRAPH_RECURSION_REPLY = "Sorry, need more steps to process this request."
 _GRAPH_FALLBACK_HAS_PRODUCT_REPLY = "找到了这几款，看看有没有喜欢的？"
 _GRAPH_FALLBACK_WITHOUT_PRODUCT_REPLY = "暂时没有找到合适的商品，能不能提供更多信息让我帮你找找看？"
+_SERVICE_END_CLEAR_UPDATES: Dict[str, Any] = {
+    "intent": None,
+    "reason": None,
+    "current_subgraph": None,
+    "final_reply": None,
+    "final_status": None,
+    "final_reason": None,
+    "trace": [],
+    "started_at": None,
+    "recommend_loop": 0,
+    "recommend_context": None,
+    "recommended_products": [],
+    "qa_turn_count": 0,
+    "entry_message": None,
+    "service_key": None,
+    "goal": None,
+    "steps": [],
+    "current_step_index": 0,
+    "expected_slots": [],
+    "ticket_next_node": None,
+    "executor_retry_count": 0,
+    "replan_count": 0,
+    "planner_reason": None,
+    "slots": None,
+    "service_type": None,
+}
 
 
 class _InterruptPayload(BaseModel):
@@ -104,36 +132,6 @@ def _interrupt_message_content(interrupt_payload: Dict[str, Any] | None) -> str:
     return "\n\n".join(parts)
 
 
-def _trace_products_by_message_id(trace: Any) -> Dict[str, List[Dict[str, Any]]]:
-    products_by_message_id: Dict[str, List[Dict[str, Any]]] = {}
-    for item in list(trace or []):
-        if not isinstance(item, dict):
-            continue
-        message_id = str(item.get("message_id") or "").strip()
-        products = [product for product in list(item.get("displayed_products") or []) if isinstance(product, dict)]
-        if message_id and products:
-            products_by_message_id[message_id] = products
-    return products_by_message_id
-
-
-def _serialize_thread_messages(messages: List[Any], trace: Any = None) -> List[Dict[str, Any]]:
-    products_by_message_id = _trace_products_by_message_id(trace)
-    serialized: List[Dict[str, Any]] = []
-    for message in messages:
-        content = str(getattr(message, "content", "") or "").strip()
-        if not content:
-            continue
-        role = "user" if isinstance(message, HumanMessage) else "assistant"
-        item: Dict[str, Any] = {"role": role, "content": content}
-        message_id = str(getattr(message, "id", "") or "").strip()
-        if role == "assistant" and message_id:
-            products = products_by_message_id.get(message_id) or []
-            if products:
-                item["products"] = products
-        serialized.append(item)
-    return serialized
-
-
 def _extract_last_direct_ai_reply(messages: List[Any]) -> str:
     for message in reversed(messages):
         if not isinstance(message, AIMessage):
@@ -147,30 +145,13 @@ def _extract_last_direct_ai_reply(messages: List[Any]) -> str:
     return ""
 
 
-async def get_thread_runtime_messages(thread_id: str) -> List[Dict[str, Any]]:
-    wf = get_workflow()
-    if wf is None:
-        return []
-    normalized_thread_id = str(thread_id or "").strip()
-    if not normalized_thread_id:
-        return []
-
+async def _clear_finished_service_state(wf: Any, config: Dict[str, Any], state: Dict[str, Any]) -> None:
+    if state.get("current_subgraph"):
+        return
     try:
-        saved_state = await wf.aget_state({"configurable": {"thread_id": normalized_thread_id}})
+        await wf.aupdate_state(config, dict(_SERVICE_END_CLEAR_UPDATES))
     except Exception as e:
-        logger.warning("[workflow] get_thread_runtime_messages failed: %s", e)
-        return []
-
-    values = getattr(saved_state, "values", None)
-    runtime_messages = _serialize_thread_messages(
-        list((values or {}).get("messages") or []),
-        (values or {}).get("trace") if isinstance(values, dict) else None,
-    )
-    interrupt_payload = _get_last_interrupt_payload(saved_state)
-    interrupt_content = _interrupt_message_content(interrupt_payload)
-    if interrupt_content:
-        runtime_messages.append({"role": "assistant", "content": interrupt_content})
-    return runtime_messages
+        logger.warning("[workflow] clear_finished_service_state failed: %s", e)
 
 
 async def _build_invoke_input(
@@ -244,7 +225,6 @@ def create_workflow(checkpointer):
     graph.add_node("ticket_agent", get_ticket_workflow())
     graph.add_node("qa_agent", qa_node)
     graph.add_node("recommend", get_recommend_workflow())
-    graph.add_node("post_process", post_process_node)
 
     # 入口条件：根据 current_subgraph 决定进入哪个节点
     graph.set_conditional_entry_point(
@@ -263,12 +243,30 @@ def create_workflow(checkpointer):
             "ticket": "ticket_agent",
             "qa": "qa_agent",
             "recommend": "recommend",
+            "direct_reply": END,
         },
     )
-    graph.add_edge("ticket_agent", "post_process")
-    graph.add_edge("qa_agent", "post_process")
-    graph.add_edge("recommend", "post_process")
-    graph.add_edge("post_process", END)
+    graph.add_conditional_edges(
+        "ticket_agent",
+        lambda state: "end",
+        {
+            "end": END,
+        },
+    )
+    graph.add_conditional_edges(
+        "qa_agent",
+        lambda state: "end",
+        {
+            "end": END,
+        },
+    )
+    graph.add_conditional_edges(
+        "recommend",
+        lambda state: "end",
+        {
+            "end": END,
+        },
+    )
     return graph.compile(checkpointer=checkpointer)
 
 
@@ -316,6 +314,11 @@ async def invoke_member_ops(
         reply = _extract_last_direct_ai_reply(messages) or (
             _GRAPH_FALLBACK_HAS_PRODUCT_REPLY if products else _GRAPH_FALLBACK_WITHOUT_PRODUCT_REPLY
         )
+    state_snapshot = dict(saved_values)
+    service_finished = not str(state_snapshot.get("current_subgraph") or "").strip()
+    if service_finished and str(state_snapshot.get("intent") or "").strip() != "direct_reply":
+        spawn_post_process_tasks(state_snapshot)
+    await _clear_finished_service_state(wf, config, state_snapshot)
     return {
         "thread_id": thread_id,
         "reply": reply,

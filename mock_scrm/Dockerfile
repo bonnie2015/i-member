@@ -1,12 +1,18 @@
-FROM python:3.11-slim
+FROM maven:3.8.8-eclipse-temurin-17 AS build
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pom.xml .
+COPY src ./src
+COPY data ./data
+RUN mvn -q -DskipTests package
 
-COPY main.py .
+FROM eclipse-temurin:17-jre-jammy
+
+WORKDIR /app
+COPY --from=build /app/target/scrm-0.0.1-SNAPSHOT.jar /app/app.jar
+COPY data/seed /app/seed
 
 EXPOSE 3658
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3658"]
+CMD ["java", "-jar", "/app/app.jar"]

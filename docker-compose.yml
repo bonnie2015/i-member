@@ -97,20 +97,27 @@ services:
       retries: 3
 
   scrm:
+    image: mock-scrm:latest
+    container_name: mock-scrm
     build:
       context: ./mock_scrm
       dockerfile: Dockerfile
+    ports:
+      - "${SCRM_PORT:-3658}:3658"
+    volumes:
+      - scrm_data:/app/data
     networks:
       - imember-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3658/health', timeout=5).read()" ]
+      test: [ "CMD-SHELL", "bash -c '</dev/tcp/localhost/3658'" ]
       interval: 30s
       timeout: 10s
       retries: 3
 
 volumes:
   redis_data:
+  scrm_data:
 
 
 networks:

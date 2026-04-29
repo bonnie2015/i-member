@@ -2,14 +2,14 @@
     <skill>
         <name>equity-ticket</name>
         <description>处理升级申请与升级异常申诉的发起和继续处理。</description>
-        <available_tools>get_user_level, get_user_score, create_ticket, get_ticket, get_tickets</available_tools>
+        <available_tools>get_user_level, create_ticket, get_ticket, get_tickets</available_tools>
         <clarify_labels>升级申请, 升级异常申诉</clarify_labels>
         <location>app/agents/skills/ticket/equity-ticket/SKILL.md</location>
     </skill>
     <skill>
         <name>refund-ticket</name>
         <description>处理退货/换货相关诉求。</description>
-        <available_tools>get_user_orders, get_order_detail, search_product, get_product_detail, get_product_stock, create_ticket, get_ticket, get_tickets</available_tools>
+        <available_tools>get_user_orders, get_order_detail, onitsuka_get_product_detail, create_ticket, get_ticket, get_tickets</available_tools>
         <clarify_labels>退货, 换货, 退换货进度查询</clarify_labels>
         <location>app/agents/skills/ticket/refund-ticket/SKILL.md</location>
     </skill>
@@ -22,8 +22,8 @@
     </skill>
     <skill>
         <name>unsatisfy-ticket</name>
-        <description>处理质量问题与投诉诉求，基于订单、商品与工单接口完成查询、确认、创建与追踪。</description>
-        <available_tools>get_user_orders, get_order_detail, get_product_detail, create_ticket, get_ticket, get_tickets</available_tools>
+        <description>处理质量问题与投诉诉求。</description>
+        <available_tools>get_user_orders, get_order_detail, onitsuka_get_product_detail, create_ticket, get_ticket, get_tickets</available_tools>
         <clarify_labels>质量问题, 投诉, 破损瑕疵, 服务不满</clarify_labels>
         <location>app/agents/skills/ticket/unsatisfy-ticket/SKILL.md</location>
     </skill>

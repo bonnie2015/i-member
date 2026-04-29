@@ -20,8 +20,6 @@ from app.config.redis_keys import USER_FACTS_KEY
 logger = get_logger("user_facts")
 
 _CORE_FACTS_LIMIT = 8
-_RETRIEVABLE_FACTS_LIMIT = 200
-_MESSAGE_CONTENT_LIMIT = 500
 
 
 class StoredUserFact(BaseModel):
@@ -30,15 +28,13 @@ class StoredUserFact(BaseModel):
 
 
 class UserFactsStore(BaseModel):
-    core_facts: list[StoredUserFact] = Field(default_factory=list)
-    retrievable_facts: list[StoredUserFact] = Field(default_factory=list)
+    facts: list[StoredUserFact] = Field(default_factory=list)
     updated_at: str = ""
 
 
 class UserFactsExtractionOutput(BaseModel):
-    add_core_facts: list[str] = Field(default_factory=list)
-    delete_core_facts: list[str] = Field(default_factory=list)
-    add_retrievable_facts: list[str] = Field(default_factory=list)
+    add_facts: list[str] = Field(default_factory=list)
+    delete_facts: list[str] = Field(default_factory=list)
 
 
 # Generate a stable UTC timestamp for fact updates and writes.
@@ -67,8 +63,6 @@ def _serialize_messages(messages: Sequence[BaseMessage]) -> list[dict[str, str]]
         content = str(getattr(message, "content", "") or "").strip()
         if not content:
             continue
-        if len(content) > _MESSAGE_CONTENT_LIMIT:
-            content = content[:_MESSAGE_CONTENT_LIMIT].rstrip() + "..."
         payload.append(
             {
                 "role": getattr(message, "type", message.__class__.__name__),
@@ -103,19 +97,13 @@ def _coerce_store(payload: Any) -> UserFactsStore:
         return payload
     if not isinstance(payload, Mapping):
         return UserFactsStore()
-    core_items = []
-    for item in payload.get("core_facts") or []:
+    facts = []
+    for item in payload.get("facts") or []:
         parsed = _coerce_fact_item(item)
         if parsed:
-            core_items.append(parsed)
-    retrievable_items = []
-    for item in payload.get("retrievable_facts") or []:
-        parsed = _coerce_fact_item(item)
-        if parsed:
-            retrievable_items.append(parsed)
+            facts.append(parsed)
     return UserFactsStore(
-        core_facts=core_items,
-        retrievable_facts=retrievable_items,
+        facts=facts,
         updated_at=str(payload.get("updated_at") or "").strip(),
     )
 
@@ -159,30 +147,17 @@ async def load_user_facts_store(user_id: str) -> UserFactsStore:
 
 async def load_user_facts(user_id: str) -> list[str]:
     store = await load_user_facts_store(user_id)
-    return [item.fact for item in store.core_facts if _normalize_fact_text(item.fact)]
+    return [item.fact for item in store.facts if _normalize_fact_text(item.fact)]
 
 
-async def load_retrievable_user_facts(user_id: str, limit: int = 20) -> list[dict[str, str]]:
-    store = await load_user_facts_store(user_id)
-    items = sorted(
-        [item for item in store.retrievable_facts if _normalize_fact_text(item.fact)],
-        key=lambda item: str(item.updated_at or ""),
-        reverse=True,
-    )
-    return [
-        {"fact": item.fact, "updated_at": item.updated_at}
-        for item in items[: max(int(limit or 0), 0)]
-    ]
-
-
-def _apply_core_fact_changes(
+def _apply_fact_changes(
     existing: Sequence[StoredUserFact],
     *,
-    add_core_facts: Sequence[str],
-    delete_core_facts: Sequence[str],
+    add_facts: Sequence[str],
+    delete_facts: Sequence[str],
     timestamp: str,
 ) -> list[StoredUserFact]:
-    delete_keys = {fact.casefold() for fact in _dedupe_texts(delete_core_facts)}
+    delete_keys = {fact.casefold() for fact in _dedupe_texts(delete_facts)}
     ordered_existing: list[StoredUserFact] = []
     seen_existing: set[str] = set()
     for item in existing:
@@ -202,7 +177,7 @@ def _apply_core_fact_changes(
 
     current_keys = {item.fact.casefold() for item in ordered_existing}
     additions = _dedupe_texts(
-        add_core_facts,
+        add_facts,
         limit=_CORE_FACTS_LIMIT,
         exclude=current_keys,
     )
@@ -218,57 +193,11 @@ def _apply_core_fact_changes(
     return ordered_existing[:_CORE_FACTS_LIMIT]
 
 
-def _apply_retrievable_fact_changes(
-    existing: Sequence[StoredUserFact],
-    *,
-    add_retrievable_facts: Sequence[str],
-    core_fact_keys: set[str],
-    timestamp: str,
-) -> list[StoredUserFact]:
-    merged: list[StoredUserFact] = []
-    merged_map: dict[str, StoredUserFact] = {}
-
-    for item in existing:
-        fact = _normalize_fact_text(item.fact)
-        if not fact:
-            continue
-        key = fact.casefold()
-        if key in core_fact_keys or key in merged_map:
-            continue
-        record = StoredUserFact(
-            fact=fact,
-            updated_at=str(item.updated_at or "").strip(),
-        )
-        merged_map[key] = record
-        merged.append(record)
-
-    for fact in _dedupe_texts(add_retrievable_facts):
-        key = fact.casefold()
-        if key in core_fact_keys:
-            continue
-        if key in merged_map:
-            merged_map[key].updated_at = timestamp
-            continue
-        record = StoredUserFact(fact=fact, updated_at=timestamp)
-        merged_map[key] = record
-        merged.append(record)
-
-    if len(merged) <= _RETRIEVABLE_FACTS_LIMIT:
-        return merged
-
-    return sorted(
-        merged,
-        key=lambda item: str(item.updated_at or ""),
-        reverse=True,
-    )[:_RETRIEVABLE_FACTS_LIMIT]
-
-
 async def save_user_facts_store(
     user_id: str,
     *,
-    add_core_facts: Sequence[str],
-    delete_core_facts: Sequence[str],
-    add_retrievable_facts: Sequence[str],
+    add_facts: Sequence[str],
+    delete_facts: Sequence[str],
 ) -> UserFactsStore:
     redis = await get_optional_redis_client()
     if not redis:
@@ -276,22 +205,14 @@ async def save_user_facts_store(
 
     existing = await load_user_facts_store(user_id)
     timestamp = _utc_now_iso()
-    core_facts = _apply_core_fact_changes(
-        existing.core_facts,
-        add_core_facts=add_core_facts,
-        delete_core_facts=delete_core_facts,
-        timestamp=timestamp,
-    )
-    core_fact_keys = {item.fact.casefold() for item in core_facts}
-    retrievable_facts = _apply_retrievable_fact_changes(
-        existing.retrievable_facts,
-        add_retrievable_facts=add_retrievable_facts,
-        core_fact_keys=core_fact_keys,
+    facts = _apply_fact_changes(
+        existing.facts,
+        add_facts=add_facts,
+        delete_facts=delete_facts,
         timestamp=timestamp,
     )
     store = UserFactsStore(
-        core_facts=core_facts,
-        retrievable_facts=retrievable_facts,
+        facts=facts,
         updated_at=timestamp,
     )
     try:
@@ -308,14 +229,12 @@ async def _extract_user_fact_changes(
     *,
     user_id: str,
     messages: Sequence[BaseMessage],
-    service_memory_summary: str,
 ) -> UserFactsExtractionOutput:
     existing_store = await load_user_facts_store(user_id)
     llm = get_remote_llm(role="postprocess").with_structured_output(UserFactsExtractionOutput)
     prompt = await build_user_facts_extraction_system_prompt(
         runtime_context=UserFactsRuntimePayload(
-            existing_core_facts=[item.fact for item in existing_store.core_facts],
-            current_service_memory_summary=str(service_memory_summary or "").strip(),
+            existing_facts=[item.fact for item in existing_store.facts],
         )
     )
     llm_messages = [
@@ -335,9 +254,8 @@ async def _extract_user_fact_changes(
         provider="deepseek",
     )
     return UserFactsExtractionOutput(
-        add_core_facts=_dedupe_texts(response.add_core_facts, limit=_CORE_FACTS_LIMIT),
-        delete_core_facts=_dedupe_texts(response.delete_core_facts, limit=_CORE_FACTS_LIMIT),
-        add_retrievable_facts=_dedupe_texts(response.add_retrievable_facts, limit=_RETRIEVABLE_FACTS_LIMIT),
+        add_facts=_dedupe_texts(response.add_facts, limit=_CORE_FACTS_LIMIT),
+        delete_facts=_dedupe_texts(response.delete_facts, limit=_CORE_FACTS_LIMIT),
     )
 
 
@@ -345,16 +263,13 @@ async def extract_and_save_user_facts(
     *,
     user_id: str,
     messages: Sequence[BaseMessage],
-    service_memory_summary: str,
 ) -> UserFactsStore:
     changes = await _extract_user_fact_changes(
         user_id=user_id,
         messages=messages,
-        service_memory_summary=service_memory_summary,
     )
     return await save_user_facts_store(
         user_id,
-        add_core_facts=changes.add_core_facts,
-        delete_core_facts=changes.delete_core_facts,
-        add_retrievable_facts=changes.add_retrievable_facts,
+        add_facts=changes.add_facts,
+        delete_facts=changes.delete_facts,
     )

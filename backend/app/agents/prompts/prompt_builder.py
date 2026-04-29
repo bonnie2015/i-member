@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from app.agents.tools.business.execution_context import REQUEST_USER_ID_CTX
 
 _PROMPTS_DIR = Path(__file__).parent
@@ -24,36 +24,27 @@ class PromptUserContext(BaseModel):
 class PromptCapabilityContext(BaseModel):
     ticket_skills_snapshot: str = ""
     selected_skill_content: str = ""
-    interaction_template: str = ""
-    tool_summary: str = ""
 
 
 class TicketPlanRuntimePayload(BaseModel):
-    planning_mode: str = ""
     current_goal: str = ""
+    current_step_index: int = 0
     slots: Dict[str, Any] = Field(default_factory=dict)
-    failed_step: Dict[str, Any] = Field(default_factory=dict)
 
 
 class TicketExecuteRuntimePayload(BaseModel):
-    goal: str = ""
     step: Dict[str, Any] = Field(default_factory=dict)
     slots: Dict[str, Any] = Field(default_factory=dict)
-    expected_slots: list[str] = Field(default_factory=list)
-
-
-class PostProcessRuntimePayload(BaseModel):
-    intent: str = ""
-    reason: str = ""
-    final_status: str = ""
-    final_reply: str = ""
-    trace: Any = ""
-    facts: Any = ""
 
 
 class UserFactsRuntimePayload(BaseModel):
-    existing_core_facts: list[str] = Field(default_factory=list)
-    current_service_memory_summary: str = ""
+    existing_facts: list[str] = Field(default_factory=list)
+
+
+class ServiceSummaryRuntimePayload(BaseModel):
+    service_type: str = ""
+    final_status: str = ""
+    final_reason: str = ""
 
 
 class RecommendGuardRuntimePayload(BaseModel):
@@ -64,8 +55,6 @@ class RecommendGuardRuntimePayload(BaseModel):
 _PROMPT_CAPABILITY_FIELD_LABELS: dict[str, str] = {
     "ticket_skills_snapshot": "工单技能快照",
     "selected_skill_content": "当前选中技能",
-    "interaction_template": "交互模板",
-    "tool_summary": "可用工具摘要",
 }
 
 
@@ -133,12 +122,6 @@ def format_user_context(user_context: PromptUserContext) -> str:
     return rendered or "[None]"
 
 
-def render_capability_context(
-    capability_context: PromptCapabilityContext | None,
-) -> str:
-    return _load_prompt_capability_context(capability_context)
-
-
 def _load_prompt_capability_context(
     capability_context: PromptCapabilityContext | None,
 ) -> str:
@@ -199,12 +182,13 @@ def build_ticket_plan_runtime_context(
     runtime_context: TicketPlanRuntimePayload | None = None,
 ) -> str:
     payload = runtime_context or TicketPlanRuntimePayload()
+    remaining_step_count = max(5 - int(payload.current_step_index or 0), 0)
     rendered = format_context_sections(
         {
-            "规划模式": _serialize_runtime_value(payload.planning_mode),
             "任务目标": _serialize_runtime_value(payload.current_goal),
+            "当前步骤序号": _serialize_runtime_value(payload.current_step_index),
+            "剩余任务规划步数": _serialize_runtime_value(remaining_step_count),
             "已确定槽位": _serialize_runtime_value(payload.slots),
-            "最近失败步骤": _serialize_runtime_value(payload.failed_step),
         }
     )
     return rendered or "[None]"
@@ -216,27 +200,8 @@ def build_ticket_execute_runtime_context(
     payload = runtime_context or TicketExecuteRuntimePayload()
     rendered = format_context_sections(
         {
-            "总目标": _serialize_runtime_value(payload.goal),
-            "当前步骤": _serialize_runtime_value(payload.step),
             "已确定槽位": _serialize_runtime_value(payload.slots),
-            "预期收集槽位": _serialize_runtime_value(payload.expected_slots),
-        }
-    )
-    return rendered or "[None]"
-
-
-def build_post_process_runtime_context(
-    runtime_context: PostProcessRuntimePayload | None = None,
-) -> str:
-    payload = runtime_context or PostProcessRuntimePayload()
-    rendered = format_context_sections(
-        {
-            "当前意图": str(payload.intent or "").strip(),
-            "当前判断原因": str(payload.reason or "").strip(),
-            "最终状态": str(payload.final_status or "").strip(),
-            "最终答复": str(payload.final_reply or "").strip(),
-            "执行轨迹": str(payload.trace or "").strip(),
-            "关键事实": str(payload.facts or "").strip(),
+            "当前步骤": _serialize_runtime_value(payload.step),
         }
     )
     return rendered or "[None]"
@@ -248,8 +213,21 @@ def build_user_facts_runtime_context(
     payload = runtime_context or UserFactsRuntimePayload()
     rendered = format_context_sections(
         {
-            "已有重要长期事实": _normalize_text_list(list(payload.existing_core_facts or [])),
-            "本轮服务记忆摘要": str(payload.current_service_memory_summary or "").strip(),
+            "已有用户事实": _normalize_text_list(list(payload.existing_facts or [])),
+        }
+    )
+    return rendered or "[None]"
+
+
+def build_service_summary_runtime_context(
+    runtime_context: ServiceSummaryRuntimePayload | None = None,
+) -> str:
+    payload = runtime_context or ServiceSummaryRuntimePayload()
+    rendered = format_context_sections(
+        {
+            "service_type": _serialize_runtime_value(payload.service_type),
+            "final_status": _serialize_runtime_value(payload.final_status),
+            "final_reason": _serialize_runtime_value(payload.final_reason),
         }
     )
     return rendered or "[None]"
@@ -278,8 +256,34 @@ def build_recommend_runtime_context(
 ) -> str:
     context = runtime_context or {}
     if not context:
-        return "{}"
-    return json.dumps(context, ensure_ascii=False, indent=2, default=str)
+        return "[None]"
+
+    summary = str(context.get("summary") or "").strip()
+    anchor_products = context.get("anchor_products") or []
+    cursor = context.get("cursor") or {}
+    rendered = format_context_sections(
+        {
+            "当前任务总结": (
+                "说明：推荐守卫对当前推荐任务、用户最新目标、有效偏好和关键反馈的压缩总结。\n"
+                f"内容：{summary}"
+            )
+            if summary
+            else "",
+            "重要锚点商品": (
+                "说明：用户明确指代或后续推荐必须参考的商品/关键信息；每项 source 说明来源或用途。\n"
+                f"内容：{json.dumps(anchor_products, ensure_ascii=False, indent=2, default=str)}"
+            )
+            if anchor_products
+            else "",
+            "上一轮搜索批次": (
+                "说明：用户要求继续看、换一批或翻页时使用；cursor 描述上一批搜索来源并用于继续翻页。\n"
+                f"内容：{json.dumps(cursor, ensure_ascii=False, indent=2, default=str)}"
+            )
+            if cursor
+            else "",
+        }
+    )
+    return rendered or "[None]"
 
 
 async def build_router_system_prompt(
@@ -340,37 +344,23 @@ async def build_recommend_guard_system_prompt(
 
 async def build_ticket_guard_system_prompt(
     *,
-    user_context: Mapping[str, Any] | None = None,
     capability_context: PromptCapabilityContext | None = None,
 ) -> str:
-    rendered_user_context = format_user_context(
-        _build_prompt_user_context(
-            user_context=user_context,
-        )
-    )
     rendered_capability_context = _load_prompt_capability_context(capability_context)
     return build_base_system_prompt(
         prompt_file="ticket/guard.txt",
-        user_context=rendered_user_context,
         capability_context=rendered_capability_context,
     )
 
 async def build_ticket_plan_system_prompt(
     *,
-    user_context: Mapping[str, Any] | None = None,
     capability_context: PromptCapabilityContext | None = None,
     runtime_context: TicketPlanRuntimePayload | None = None,
 ) -> str:
-    rendered_user_context = format_user_context(
-        _build_prompt_user_context(
-            user_context=user_context,
-        )
-    )
     rendered_capability_context = _load_prompt_capability_context(capability_context)
     rendered_runtime_context = build_ticket_plan_runtime_context(runtime_context)
     return build_base_system_prompt(
         prompt_file="ticket/plan.txt",
-        user_context=rendered_user_context,
         capability_context=rendered_capability_context,
         runtime_context=rendered_runtime_context,
     )
@@ -378,42 +368,11 @@ async def build_ticket_plan_system_prompt(
 
 async def build_ticket_execute_system_prompt(
     *,
-    user_context: Mapping[str, Any] | None = None,
-    capability_context: PromptCapabilityContext | None = None,
     runtime_context: TicketExecuteRuntimePayload | None = None,
 ) -> str:
-    rendered_user_context = format_user_context(
-        _build_prompt_user_context(
-            user_context=user_context,
-        )
-    )
-    rendered_capability_context = _load_prompt_capability_context(capability_context)
     rendered_runtime_context = build_ticket_execute_runtime_context(runtime_context)
     return build_base_system_prompt(
         prompt_file="ticket/execute.txt",
-        user_context=rendered_user_context,
-        capability_context=rendered_capability_context,
-        runtime_context=rendered_runtime_context,
-    )
-
-
-async def build_post_process_system_prompt(
-    *,
-    user_context: Mapping[str, Any] | None = None,
-    runtime_context: PostProcessRuntimePayload | None = None,
-    capability_context: PromptCapabilityContext | None = None,
-) -> str:
-    rendered_user_context = format_user_context(
-        _build_prompt_user_context(
-            user_context=user_context,
-        )
-    )
-    rendered_capability_context = _load_prompt_capability_context(capability_context)
-    rendered_runtime_context = build_post_process_runtime_context(runtime_context)
-    return build_base_system_prompt(
-        prompt_file="post_process/service_memory.txt",
-        user_context=rendered_user_context,
-        capability_context=rendered_capability_context,
         runtime_context=rendered_runtime_context,
     )
 
@@ -435,8 +394,26 @@ async def build_user_facts_extraction_system_prompt(
     )
 
 
-async def build_ticket_finalize_system_prompt(*, context: str) -> str:
+async def build_service_summary_system_prompt(
+    *,
+    runtime_context: ServiceSummaryRuntimePayload | None = None,
+) -> str:
+    rendered_runtime_context = build_service_summary_runtime_context(runtime_context)
     return build_base_system_prompt(
-        prompt_file="ticket/finalize.txt",
+        prompt_file="post_process/service_summary.txt",
+        runtime_context=rendered_runtime_context,
+    )
+
+
+async def build_ticket_reflect_plan_failed_system_prompt(*, context: str) -> str:
+    return build_base_system_prompt(
+        prompt_file="ticket/reflect_plan_failed.txt",
+        context=str(context or "").strip() or "[None]",
+    )
+
+
+async def build_ticket_executor_result_system_prompt(*, context: str) -> str:
+    return build_base_system_prompt(
+        prompt_file="ticket/executor_result.txt",
         context=str(context or "").strip() or "[None]",
     )

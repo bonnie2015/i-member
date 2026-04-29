@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any, Dict
-
 from pydantic import BaseModel, Field
 
 
@@ -20,4 +18,3 @@ class DisplayProductCard(BaseModel):
     reason: str = Field(default="", description="推荐或展示理由。")
     in_stock: bool | None = Field(default=None, description="是否有货。")
     stock: int | None = Field(default=None, description="库存数。")
-    cursor: Dict[str, Any] = Field(default_factory=dict, description="商品来源搜索游标。")

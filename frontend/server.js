@@ -7,6 +7,7 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SCRM_ORIGIN = process.env.SCRM_ORIGIN || 'http://scrm:3658';
 
 // 静态文件服务
 app.use(express.static(__dirname));
@@ -19,6 +20,32 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         version: '1.0.0'
     });
+});
+
+app.get('/mock-scrm/state', async (req, res) => {
+    try {
+        const upstream = await fetch(`${SCRM_ORIGIN}/mock/admin/state`);
+        const body = await upstream.text();
+        res.status(upstream.status).type(upstream.headers.get('content-type') || 'application/json').send(body);
+    } catch (err) {
+        res.status(502).json({
+            detail: 'mock scrm unavailable',
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
+});
+
+app.post('/mock-scrm/reset', async (req, res) => {
+    try {
+        const upstream = await fetch(`${SCRM_ORIGIN}/mock/admin/reset`, { method: 'POST' });
+        const body = await upstream.text();
+        res.status(upstream.status).type(upstream.headers.get('content-type') || 'application/json').send(body);
+    } catch (err) {
+        res.status(502).json({
+            detail: 'mock scrm unavailable',
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
 });
 
 // 默认路由 - 提供前端页面

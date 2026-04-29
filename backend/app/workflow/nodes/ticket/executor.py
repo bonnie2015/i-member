@@ -1,110 +1,56 @@
 from __future__ import annotations
 
 import json
-import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 
-from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
-from langchain_core.messages.ai import AIMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langgraph.errors import GraphInterrupt
-from langgraph.prebuilt import create_react_agent
+from pydantic import BaseModel, Field, field_validator
 
 from app.agents.llm.llm_factory import get_remote_llm
+from app.agents.llm.runtime import invoke_with_usage_logging
 from app.agents.prompts.prompt_builder import (
     TicketExecuteRuntimePayload,
+    build_ticket_executor_result_system_prompt,
     build_ticket_execute_system_prompt,
 )
-from app.agents.tools import ask_user_tool, get_scrm_tools, submit_step_result_tool
+from app.agents.tools import ask_user_tool, get_scrm_tools, onitsuka_get_product_detail
+from app.agents.tools.business.execution_context import ticket_interaction_source_context
 from app.config.logging import get_logger
-from app.workflow.state import (
-    TicketNextAction,
-    TicketState,
-    resolve_current_step_index,
-)
+from app.workflow.state import AgentState, TicketNextNode
 
 logger = get_logger("ticket_executor")
 
-_MAX_RECENT_MESSAGES = 8
-_MAX_REACT_RECURSION = 12
+_EXECUTOR_TIMEOUT_SECONDS = 60
 
 
-def _recent_messages(state: TicketState) -> List[BaseMessage]:
-    messages = list(state.get("messages") or [])
-    return [message for message in messages[-_MAX_RECENT_MESSAGES:] if isinstance(message, BaseMessage)]
+class StepExecutionReview(BaseModel):
+    step_status: Literal["pending", "successed", "failed", "cancelled"] = "pending"
+    extracted_slots: Dict[str, Any] = Field(default_factory=dict)
+    failed_reason: str = ""
+    failed_type: str = ""
+    executor_guidance: str = ""
+    final_status: Literal["running", "success", "failed", "cancelled"] = "running"
+    final_reason: str = ""
+    reply: str = ""
+
+    @field_validator("final_status", mode="before")
+    @classmethod
+    def normalize_final_status(cls, value: Any) -> Any:
+        if value in (None, ""):
+            return "running"
+        if isinstance(value, str) and value.strip().lower() in {"null", "none", "nil"}:
+            return "running"
+        return value
 
 
-def _message_text(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: List[str] = []
-        for item in content:
-            if isinstance(item, dict) and item.get("type") == "text":
-                parts.append(str(item.get("text") or ""))
-            else:
-                parts.append(str(item))
-        return "\n".join(parts)
-    return str(content or "")
+def _tool_registry() -> Dict[str, BaseTool]:
+    return {str(tool.name): tool for tool in [*get_scrm_tools(), onitsuka_get_product_detail]}
 
 
-def _parse_json_text(text: str) -> Any:
-    raw_text = str(text or "").strip()
-    if not raw_text:
-        return raw_text
-    try:
-        return json.loads(raw_text)
-    except Exception:
-        return raw_text
-
-
-def _truncate_text(value: Any, *, limit: int = 240) -> str:
-    text = str(value or "").strip()
-    text = re.sub(r"\s+", " ", text)
-    if len(text) <= limit:
-        return text
-    return text[: limit - 3] + "..."
-
-
-def _extract_final_result(messages: List[BaseMessage]) -> Dict[str, Any] | None:
-    for message in reversed(messages):
-        if not isinstance(message, ToolMessage):
-            continue
-        if str(getattr(message, "name", "") or "").strip() != "submit_step_result":
-            continue
-        parsed = _parse_json_text(getattr(message, "content", ""))
-        if isinstance(parsed, dict) and "step_status" in parsed:
-            return parsed
-    return None
-
-
-def _build_execution_result(messages: List[BaseMessage]) -> List[Dict[str, Any]]:
-    execution_result: List[Dict[str, Any]] = []
-    pending_calls: Dict[str, Dict[str, Any]] = {}
-    for message in messages:
-        if isinstance(message, AIMessage):
-            for tool_call in list(message.tool_calls or []):
-                pending_calls[str(tool_call.get("id") or "").strip()] = {
-                    "tool_name": str(tool_call.get("name") or "").strip(),
-                    "request": tool_call.get("args") or {},
-                }
-            continue
-
-        if isinstance(message, ToolMessage):
-            tool_call_id = str(getattr(message, "tool_call_id", "") or "").strip()
-            pending = pending_calls.get(tool_call_id, {})
-            execution_result.append(
-                {
-                    "tool_name": str(getattr(message, "name", "") or pending.get("tool_name") or "").strip(),
-                    "request": pending.get("request") or {},
-                    "response": _parse_json_text(getattr(message, "content", "")),
-                }
-            )
-    return execution_result
-
-
-def _resolve_step_tools(step: Dict[str, Any]) -> List[BaseTool]:
-    tool_registry: Dict[str, BaseTool] = {str(tool.name): tool for tool in get_scrm_tools()}
+def _available_tools(step: Dict[str, Any]) -> List[BaseTool]:
+    registry = _tool_registry()
     selected: List[BaseTool] = []
     raw_tool_names = step.get("available_tools") or []
     if isinstance(raw_tool_names, str):
@@ -112,182 +58,263 @@ def _resolve_step_tools(step: Dict[str, Any]) -> List[BaseTool]:
     if not isinstance(raw_tool_names, list):
         raw_tool_names = []
 
-    seen_tool_names: set[str] = set()
     for item in raw_tool_names:
         tool_name = str(item or "").strip()
-        if not tool_name or tool_name in seen_tool_names:
-            continue
-        seen_tool_names.add(tool_name)
-        tool = tool_registry.get(tool_name)
-        if tool is not None:
+        tool = registry.get(tool_name)
+        if tool_name and tool is not None:
             selected.append(tool)
-    return [*selected, ask_user_tool, submit_step_result_tool]
+    return [*selected, ask_user_tool]
 
 
-def _apply_step_result(
-    *,
-    step: Dict[str, Any],
-    existing_slots: Dict[str, Any],
-    agent_result: Dict[str, Any],
-    expected_slots: List[str],
-) -> tuple[Dict[str, Any], Dict[str, Any]]:
-    allowed_slot_keys = {
+def _interaction_sources(step: Dict[str, Any]) -> List[Dict[str, Any]]:
+    sources: List[Dict[str, Any]] = []
+    for item in list(step.get("try_process") or []):
+        if not isinstance(item, dict):
+            continue
+        response = item.get("response")
+        if isinstance(response, dict) and "error" not in response and "error_code" not in response:
+            sources.append(response)
+    return sources[-3:]
+
+
+def _allowed_slot_keys(state: AgentState, step: Dict[str, Any]) -> set[str]:
+    return {
         str(key).strip()
-        for key in [*(step.get("target_slots") or []), *expected_slots]
+        for key in [*(step.get("target_slots") or []), *(state.get("expected_slots") or [])]
         if str(key).strip()
     }
-    merged_slots = dict(existing_slots)
-    current_slots = agent_result.get("current_slots")
-    if isinstance(current_slots, dict):
-        merged_slots.update(
-            {
-                str(key).strip(): value
-                for key, value in current_slots.items()
-                if str(key).strip() and str(key).strip() in allowed_slot_keys
-            }
-        )
-
-    normalized_result = dict(agent_result)
-    normalized_result["failed_reason"] = str(normalized_result.get("failed_reason") or "").strip()
-    normalized_result["failed_type"] = str(normalized_result.get("failed_type") or "").strip()
-    step_status = str(normalized_result.get("step_status") or "pending").strip()
-
-    if step_status == "cancelled":
-        failed_reason = normalized_result["failed_reason"] or "user_cancelled"
-        if not failed_reason.startswith("executor:"):
-            failed_reason = f"executor:{failed_reason}"
-        normalized_result["failed_reason"] = failed_reason
-    elif step_status == "successed":
-        missing_slots = [
-            str(key).strip()
-            for key in (step.get("target_slots") or [])
-            if str(key).strip() and merged_slots.get(str(key).strip()) in (None, "", [], {})
-        ]
-        if missing_slots:
-            normalized_result["step_status"] = "failed"
-            normalized_result["failed_reason"] = "当前步骤判定成功，但缺少完成该步骤所需的目标槽位：" + ", ".join(missing_slots)
-            normalized_result["failed_type"] = "system"
-
-    updated_step = {
-        **dict(step),
-        "step_status": str(normalized_result.get("step_status") or "failed").strip() or "failed",
-        "failed_reason": str(normalized_result.get("failed_reason") or "").strip(),
-        "failed_type": str(normalized_result.get("failed_type") or "").strip(),
-        "try_process": [],
-    }
-    return merged_slots, updated_step
 
 
-async def _run_step_agent(state: TicketState, step: Dict[str, Any], slots: Dict[str, Any]) -> Dict[str, Any]:
-    thread_id = str(state.get("thread_id") or "").strip() or "unknown"
-    resolved_tools = _resolve_step_tools(step)
-    recent_messages = _recent_messages(state)
+def _valid_slot_value(value: Any) -> bool:
+    if value in (None, "", [], {}):
+        return False
+    if isinstance(value, str) and value.strip().lower() in {"unknown", "null", "none", "未知", "不明", "未明确"}:
+        return False
+    return True
 
-    logger.info(
-        "[executor] thread_id=%s step_goal=%s target_slots=%s tools=%s",
-        thread_id,
-        str(step.get("goal") or "").strip()[:50],
-        list(step.get("target_slots") or []),
-        [str(tool.name) for tool in resolved_tools],
-    )
 
+def _confirmed_by_user(step: Dict[str, Any], value: Any) -> bool:
+    normalized_value = str(value or "").strip()
+    if not normalized_value:
+        return False
+    for item in list(step.get("try_process") or []):
+        if not isinstance(item, dict) or item.get("tool_name") != "ask_user":
+            continue
+        response = item.get("response")
+        if not isinstance(response, dict):
+            continue
+        detail = response.get("detail")
+        if isinstance(detail, dict):
+            if any(str(item_value or "").strip() == normalized_value for item_value in detail.values()):
+                return True
+        answer = str(response.get("answer") or "").strip()
+        if normalized_value and normalized_value in answer:
+            return True
+    return False
+
+
+def _needs_user_confirmation(slot_key: str) -> bool:
+    return slot_key in {"order_id", "order_item_id", "product_id", "ticket_id"}
+
+
+def _merge_slots(state: AgentState, step: Dict[str, Any], extracted_slots: Dict[str, Any]) -> Dict[str, Any]:
+    allowed_keys = _allowed_slot_keys(state, step)
+    merged = dict(state.get("slots") or {})
+    for key, value in dict(extracted_slots or {}).items():
+        normalized_key = str(key).strip()
+        if normalized_key not in allowed_keys or not _valid_slot_value(value):
+            continue
+        if _needs_user_confirmation(normalized_key) and not _confirmed_by_user(step, value):
+            continue
+        merged[normalized_key] = value
+    return merged
+
+
+async def _execute_once(
+    state: AgentState,
+    *,
+    step: Dict[str, Any],
+    tools: List[BaseTool],
+) -> Dict[str, Any]:
     prompt = await build_ticket_execute_system_prompt(
-        user_context=state.get("user_context") or {},
         runtime_context=TicketExecuteRuntimePayload(
-            goal=str(state.get("goal") or "").strip(),
             step=step,
-            slots=slots,
-            expected_slots=list(state.get("expected_slots") or []),
+            slots=dict(state.get("slots") or {}),
         ),
     )
-    agent = create_react_agent(
-        model=get_remote_llm(role="ticket"),
-        tools=resolved_tools,
-        prompt=prompt,
-    )
-    agent_result = await agent.ainvoke(
-        {
-            "messages": [*recent_messages]
-        },
-        config={"recursion_limit": _MAX_REACT_RECURSION},
-    )
-    messages = list((agent_result or {}).get("messages") or [])
-    final_result = _extract_final_result(messages)
-
-    if final_result is not None:
-        final_result["try_process"] = _build_execution_result(messages)
-        logger.info(
-            "[executor] thread_id=%s step_status=%s",
-            thread_id,
-            final_result.get("step_status"),
-        )
-        return final_result
-
-    diagnostic_tail = [
-        {
-            "type": message.__class__.__name__,
-            "content": _truncate_text(_message_text(getattr(message, "content", ""))),
-        }
-        for message in messages[-3:]
+    messages: List[BaseMessage] = [
+        SystemMessage(content=prompt),
     ]
-    logger.error(
-        "[executor] thread_id=%s missing_final_result tail=%s",
-        thread_id,
-        json.dumps(diagnostic_tail, ensure_ascii=False),
+    bound_tools = list(tools)
+    response, _ = await invoke_with_usage_logging(
+        llm=get_remote_llm(role="ticket").bind_tools(bound_tools),
+        messages=messages,
+        node="ticket_executor",
+        thread_id=state.get("thread_id"),
+        user_id=state.get("user_id"),
+        provider="deepseek",
+        timeout_seconds=_EXECUTOR_TIMEOUT_SECONDS,
     )
-    raise ValueError("executor generate result failed")
+
+    tool_calls = list(getattr(response, "tool_calls", None) or [])
+    if len(tool_calls) != 1:
+        return {
+            "tool_name": "executor",
+            "request": {},
+            "response": {
+                "error": "executor_must_call_exactly_one_tool",
+                "content": str(getattr(response, "content", "") or "").strip(),
+            },
+        }
+
+    tool_call = tool_calls[0]
+    tool_name = str(tool_call.get("name") or "").strip()
+    tool_args = dict(tool_call.get("args") or {})
+    registry = {str(tool.name): tool for tool in bound_tools}
+    tool = registry.get(tool_name)
+    if tool is None:
+        return {
+            "tool_name": tool_name,
+            "request": tool_args,
+            "response": {"error": f"tool not available: {tool_name}"},
+        }
+
+    try:
+        with ticket_interaction_source_context(sources=_interaction_sources(step)):
+            result = await tool.ainvoke(tool_args)
+    except GraphInterrupt:
+        raise
+    except Exception as exc:
+        result = {"error": str(exc)}
+
+    return {
+        "tool_name": tool_name,
+        "request": tool_args,
+        "response": result,
+    }
 
 
-async def executor_node(state: TicketState) -> Dict[str, Any]:
+async def _review_step_execution(
+    state: AgentState,
+    *,
+    step: Dict[str, Any],
+    has_next_step: bool,
+) -> StepExecutionReview:
+    context = {
+        "goal": state.get("goal"),
+        "current_step": step,
+        "slots": state.get("slots") or {},
+        "expected_slots": state.get("expected_slots") or [],
+        "has_next_step": has_next_step,
+    }
+    prompt = await build_ticket_executor_result_system_prompt(
+        context=json.dumps(context, ensure_ascii=False, indent=2, default=str)
+    )
+    response, _ = await invoke_with_usage_logging(
+        llm=get_remote_llm(role="ticket").with_structured_output(StepExecutionReview),
+        messages=[SystemMessage(content=prompt)],
+        node="ticket_executor_result",
+        thread_id=state.get("thread_id"),
+        user_id=state.get("user_id"),
+        provider="deepseek",
+        timeout_seconds=_EXECUTOR_TIMEOUT_SECONDS,
+    )
+    return response
+
+
+async def executor_node(state: AgentState) -> Dict[str, Any]:
     steps = list(state.get("steps") or [])
-
     if not steps:
         return {
-            "next_action": TicketNextAction.END,
+            "ticket_next_node": TicketNextNode.END,
             "final_status": "failed",
             "final_reason": "no_executable_plan",
         }
 
-    current_step_index = resolve_current_step_index(state, steps)
-    if current_step_index == len(steps):
+    current_step_index = int(state.get("current_step_index") or 0)
+    if current_step_index >= len(steps):
         return {
-            "next_action": TicketNextAction.REFLECT,
+            "ticket_next_node": TicketNextNode.REFLECT,
             "current_step_index": current_step_index,
         }
 
     step = steps[current_step_index]
-    slots = dict(state.get("slots") or {})
-    expected_slots = [str(item).strip() for item in list(state.get("expected_slots") or []) if str(item).strip()]
+    if not isinstance(step, dict):
+        return {
+            "ticket_next_node": TicketNextNode.END,
+            "final_status": "failed",
+            "final_reason": "invalid_step",
+            "current_step_index": current_step_index,
+        }
+
+    tools = _available_tools(step)
+    thread_id = str(state.get("thread_id") or "").strip() or "unknown"
 
     try:
-        agent_result = await _run_step_agent(state, step, slots)
-        merged_slots, updated_step = _apply_step_result(
-            step=step,
-            existing_slots=slots,
-            agent_result=agent_result,
-            expected_slots=expected_slots,
-        )
+        execution_item = await _execute_once(state, step=step, tools=tools)
     except GraphInterrupt:
         raise
     except Exception as exc:
-        logger.exception("[executor_node] step agent failed: %s", exc)
-        merged_slots = slots
-        updated_step = {
-            **dict(step),
-            "step_status": "failed",
-            "failed_reason": str(exc),
-            "failed_type": "system",
-            "try_process": [{"tool_name": "executor", "request": {}, "response": {"error": str(exc)}}],
+        logger.exception("[executor_node] thread_id=%s executor_failed: %s", thread_id, exc)
+        execution_item = {
+            "tool_name": "executor",
+            "request": {},
+            "response": {"error": str(exc)},
         }
 
     updated_steps = list(steps)
-    current = dict(updated_steps[current_step_index])
-    current.update(updated_step)
-    updated_steps[current_step_index] = current
+    current_step = dict(step)
+    current_step["try_process"] = [
+        *[item for item in list(current_step.get("try_process") or []) if isinstance(item, dict)],
+        execution_item,
+    ]
 
-    return {
+    try:
+        review = await _review_step_execution(
+            state,
+            step=current_step,
+            has_next_step=current_step_index + 1 < len(steps),
+        )
+    except Exception as exc:
+        logger.exception("[executor_node] thread_id=%s review_failed: %s", thread_id, exc)
+        review = StepExecutionReview(
+            step_status="failed",
+            failed_reason="executor_result_review_failed",
+            failed_type="system",
+        )
+    merged_slots = _merge_slots(state, current_step, review.extracted_slots)
+    current_step.update(
+        {
+            "step_status": review.step_status,
+            "failed_reason": str(review.failed_reason or "").strip(),
+            "failed_type": str(review.failed_type or "").strip(),
+            "executor_guidance": str(review.executor_guidance or "").strip(),
+        }
+    )
+    updated_steps[current_step_index] = current_step
+
+    logger.info(
+        "[executor_node] thread_id=%s current_step_index=%s step_status=%s tool_call=%s",
+        thread_id,
+        current_step_index,
+        review.step_status,
+        json.dumps(
+            {
+                "tool_name": execution_item.get("tool_name"),
+            },
+            ensure_ascii=False,
+        ),
+    )
+    updates: Dict[str, Any] = {
         "steps": updated_steps,
         "slots": merged_slots,
-        "next_action": TicketNextAction.REFLECT,
+        "ticket_next_node": TicketNextNode.REFLECT,
         "current_step_index": current_step_index,
     }
+    if review.final_status != "running":
+        updates["final_status"] = review.final_status
+    if review.final_reason:
+        updates["final_reason"] = review.final_reason
+    if review.reply:
+        updates["final_reply"] = review.reply
+    return updates

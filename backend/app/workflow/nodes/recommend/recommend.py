@@ -14,7 +14,6 @@ from app.agents.tools.business.execution_context import business_execution_conte
 from app.agents.llm.llm_factory import get_remote_llm
 from app.agents.llm.runtime import with_usage_logging
 from app.agents.prompts.prompt_builder import build_recommend_system_prompt
-from app.agents.tools.business.onitsuka_adapter import hydrate_display_products
 from app.agents.tools import (
     get_onitsuka_tools,
     onitsuka_get_product_detail,
@@ -53,22 +52,7 @@ def _last_user_message_text(state: AgentState) -> str:
 
 
 def _recommend_agent_messages(state: AgentState) -> List[BaseMessage]:
-    messages = _last_user_message(state)
-    latest_user = messages[-1] if messages else None
-    recommend_context = state.get("recommend_context") or {}
-    if not isinstance(recommend_context, dict) or not recommend_context:
-        return messages
-
-    service_summary = HumanMessage(
-        content=(
-            "前序服务记录：\n"
-            f"{json.dumps(recommend_context, ensure_ascii=False, default=str)}\n\n"
-            "以上是前面的服务压缩摘要；用户最新发言在下一条消息。"
-        )
-    )
-    if latest_user is None:
-        return [service_summary]
-    return [service_summary, latest_user]
+    return _last_user_message(state)
 
 
 def _tool_name(tool: Any) -> str:
@@ -182,7 +166,10 @@ def _parse_payload(content: Any) -> Dict[str, Any] | None:
         return None
 
 
-def _extract_recommendation_reply_result(messages: List[BaseMessage]) -> Dict[str, Any] | None:
+def _extract_recommendation_reply_result(
+    messages: List[BaseMessage],
+    recommend_context: Dict[str, Any],
+) -> Dict[str, Any] | None:
     calls_by_id = _tool_call_args_by_id(messages)
     for message in reversed(messages):
         if not isinstance(message, ToolMessage):
@@ -193,7 +180,8 @@ def _extract_recommendation_reply_result(messages: List[BaseMessage]) -> Dict[st
         if not isinstance(payload, dict):
             continue
         reply = str(payload.get("reply") or "").strip()
-        products = list(payload.get("products") or [])
+        product_refs = [item for item in list(payload.get("products") or []) if isinstance(item, dict)]
+        products = _resolve_selected_products(messages, product_refs, recommend_context)
         if not reply and not products:
             continue
         return {
@@ -293,9 +281,106 @@ def _extract_candidate_product_refs(messages: List[BaseMessage], *, limit: int =
     return refs
 
 
-def _build_recommend_result_from_messages(messages: List[BaseMessage], round_num: int) -> Dict[str, Any]:
-    trace = {"round": round_num}
-    final_result = _extract_recommendation_reply_result(messages)
+def _product_key(product: Dict[str, Any]) -> tuple[int, int | None] | None:
+    try:
+        product_id = int(product.get("product_id") or 0)
+    except Exception:
+        product_id = 0
+    if not product_id:
+        return None
+    try:
+        color_id = int(product.get("color_id") or product.get("default_color_id") or 0) or None
+    except Exception:
+        color_id = None
+    return product_id, color_id
+
+
+def _collect_tool_products(messages: List[BaseMessage]) -> List[Dict[str, Any]]:
+    products: List[Dict[str, Any]] = []
+    calls_by_id = _tool_call_args_by_id(messages)
+    for message in messages:
+        if not isinstance(message, ToolMessage):
+            continue
+        if _tool_message_name(message, calls_by_id) == str(reply_with_products_tool.name):
+            continue
+        payload = _parse_payload(getattr(message, "content", ""))
+        if not isinstance(payload, dict):
+            continue
+        for item in list(payload.get("products") or []):
+            if isinstance(item, dict):
+                products.append(item)
+        if payload.get("product_id") and not payload.get("products"):
+            products.append(payload)
+    return products
+
+
+def _collect_anchor_products(recommend_context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    return [item for item in list(recommend_context.get("anchor_products") or []) if isinstance(item, dict)]
+
+
+def _find_product_by_ref(products: List[Dict[str, Any]], ref: Dict[str, Any]) -> Dict[str, Any] | None:
+    ref_key = _product_key(ref)
+    if ref_key is None:
+        return None
+    ref_product_id, ref_color_id = ref_key
+    for product in products:
+        product_key = _product_key(product)
+        if product_key is None:
+            continue
+        product_id, color_id = product_key
+        if product_id != ref_product_id:
+            continue
+        if ref_color_id is not None and color_id != ref_color_id:
+            continue
+        return dict(product)
+    return None
+
+
+def _resolve_selected_products(
+    messages: List[BaseMessage],
+    product_refs: List[Dict[str, Any]],
+    recommend_context: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    resolved: List[Dict[str, Any]] = []
+    seen: set[tuple[int, int | None]] = set()
+    tool_products = _collect_tool_products(messages)
+    anchor_products = _collect_anchor_products(recommend_context)
+    for ref in product_refs:
+        product = _find_product_by_ref(tool_products, ref) or _find_product_by_ref(anchor_products, ref)
+        if not product:
+            continue
+        key = _product_key(product)
+        if key is None or key in seen:
+            continue
+        seen.add(key)
+        resolved.append(product)
+    return resolved
+
+
+def _extract_last_search_context(messages: List[BaseMessage]) -> Dict[str, Any]:
+    calls_by_id = _tool_call_args_by_id(messages)
+    for message in reversed(messages):
+        if not isinstance(message, ToolMessage):
+            continue
+        if _tool_message_name(message, calls_by_id) != "onitsuka_search_products_hybrid":
+            continue
+        payload = _parse_payload(getattr(message, "content", ""))
+        if not isinstance(payload, dict):
+            continue
+        cursor = payload.get("cursor")
+        if isinstance(cursor, dict) and cursor:
+            return {"cursor": cursor}
+        return {}
+    return {}
+
+
+def _build_recommend_result_from_messages(
+    messages: List[BaseMessage],
+    round_num: int,
+    recommend_context: Dict[str, Any],
+) -> Dict[str, Any]:
+    trace = {"round": round_num, **_extract_last_search_context(messages)}
+    final_result = _extract_recommendation_reply_result(messages, recommend_context)
     if final_result is not None:
         products = list(final_result.get("products") or [])
         reply = str(final_result.get("reply") or "").strip()
@@ -308,7 +393,7 @@ def _build_recommend_result_from_messages(messages: List[BaseMessage], round_num
         }
 
     reply = _extract_direct_ai_reply(messages)
-    products = hydrate_display_products(_extract_candidate_product_refs(messages))
+    products = _resolve_selected_products(messages, _extract_candidate_product_refs(messages), recommend_context)
     if not reply:
         reply = _build_fallback_reply(bool(products))
     return {
@@ -343,7 +428,6 @@ def _build_displayed_products(products: List[Dict[str, Any]]) -> List[Dict[str, 
             "color_name",
             "category",
             "gender",
-            "cursor",
         ):
             value = product.get(key)
             if value is not None and value != "":
@@ -355,12 +439,12 @@ def _build_displayed_products(products: List[Dict[str, Any]]) -> List[Dict[str, 
 async def _run_recommend(state: AgentState) -> Dict[str, Any]:
     tools = _resolve_tools(state)
     thread_id = str(state.get("thread_id") or "").strip() or "unknown"
-    round_num = int(state.get("recommend_loop") or 0) + 1
+    round_num = int(state.get("recommend_loop") or 0)
 
     recommend_context = state.get("recommend_context") or {}
     prompt = await build_recommend_system_prompt(
         user_context=state.get("user_context") or {},
-        runtime_context={},
+        runtime_context=recommend_context if isinstance(recommend_context, dict) else {},
     )
     agent_messages = _recommend_agent_messages(state)
 
@@ -430,13 +514,13 @@ async def _run_recommend(state: AgentState) -> Dict[str, Any]:
     )
     messages = list((agent_result or {}).get("messages") or [])
     logger.info(
-        "[recommend_node] thread_id=%s agent_completed messages=%s tool_messages=%s",
+        "[recommend_node] thread_id=%s agent_completed messages=%s tool_results=%s",
         str(state.get("thread_id") or "").strip() or "unknown",
         len(messages),
         len([message for message in messages if isinstance(message, ToolMessage)]),
     )
-    agent_reply = _build_recommend_result_from_messages(messages, round_num)
-    if _extract_recommendation_reply_result(messages) is None:
+    agent_reply = _build_recommend_result_from_messages(messages, round_num, recommend_context)
+    if _extract_recommendation_reply_result(messages, recommend_context) is None:
         logger.warning(
             "[recommend_node] thread_id=%s missing_final_tool recovered_reply=%s recovered_products=%s",
             str(state.get("thread_id") or "").strip() or "unknown",

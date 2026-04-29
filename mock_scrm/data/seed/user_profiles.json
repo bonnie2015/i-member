@@ -1,0 +1,35 @@
+{
+  "api_ticket_probe": {
+    "user_id": "api_ticket_probe",
+    "profile": {
+      "basic_info": {
+        "name": "Bonnie",
+        "gender": "female",
+        "age_range": "31-40",
+        "city": "上海市",
+        "member_level": "Gold"
+      },
+      "value_segment": {
+        "rfm_level": "潜力",
+        "lifetime_value": 6320,
+        "avg_order_value": 790
+      },
+      "preferences": {
+        "product_categories": ["鞋类", "服饰"],
+        "product_series": ["MEXICO 66", "MEXICO 66 SD VIN", "西装夹克"],
+        "price_sensitivity": "medium"
+      },
+      "behavior_summary": {
+        "last_active_time": "2026-04-20T18:20:00+08:00",
+        "active_frequency": "high",
+        "favorite_channels": ["微信小程序", "线下门店"]
+      },
+      "social": {
+        "is_koc": false,
+        "influence_score": 46,
+        "active_groups": ["华东会员体验群"]
+      }
+    },
+    "last_update": "2026-04-20T18:20:00+08:00"
+  }
+}
