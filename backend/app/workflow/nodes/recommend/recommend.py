@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langgraph.errors import GraphRecursionError
 from langgraph.prebuilt import create_react_agent
 
-from app.agents.execution_context import agent_execution_context
+from app.agents.tools.business.execution_context import business_execution_context
 from app.agents.llm.llm_factory import get_remote_llm
 from app.agents.llm.runtime import with_usage_logging
 from app.agents.prompts.prompt_builder import build_recommend_system_prompt
@@ -458,7 +458,7 @@ async def recommend_node(state: AgentState) -> Dict[str, Any]:
     logger.info("[recommend_node] thread_id=%s start", thread_id)
 
     try:
-        with agent_execution_context(thread_id=thread_id, user_id=state.get("user_id")):
+        with business_execution_context(thread_id=thread_id, user_id=state.get("user_id")):
             try:
                 agent_result = await _run_recommend(state)
             except GraphRecursionError as exc:

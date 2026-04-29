@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Literal, Optional, TypedDict, get_args
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
-from app.agents.execution_context import get_execution_context
+from app.agents.tools.business.execution_context import get_business_execution_context
 from app.agents.tools.business.onitsuka_adapter import (
     adapt_product_detail,
     cache_display_products,
@@ -596,7 +596,7 @@ async def _run_list_products(
     page: int = _DEFAULT_PAGE,
     page_size: int = _LIST_QUERY_LIMIT,
 ) -> tuple[List[Dict[str, Any]], SearchPath, Dict[str, str], int]:
-    context = get_execution_context()
+    context = get_business_execution_context()
     normalized_requested_params = requested_params if isinstance(requested_params, dict) else {}
     list_sort = normalize_sort(sort, default="new") or "new"
     list_where = _full_where_payload(where)
@@ -655,7 +655,7 @@ async def _run_search_paths(
     page: int = _DEFAULT_PAGE,
     page_size: int = _QUERY_LIMIT,
 ) -> tuple[List[Dict[str, Any]], SearchPath | None, Dict[str, str], int]:
-    context = get_execution_context()
+    context = get_business_execution_context()
     normalized_requested_params = requested_params if isinstance(requested_params, dict) else {}
     for path in paths:
         for where in where_variants:
@@ -806,7 +806,7 @@ async def onitsuka_search_products_hybrid(
 ) -> Dict[str, Any]:
     """Search-only product tool. The tool runs one primary query and at most one deterministic fallback."""
     normalized_sort = normalize_sort(sort, default="")
-    context = get_execution_context()
+    context = get_business_execution_context()
     cursor_payload = _decode_cursor(cursor)
     if str(cursor or "").strip():
         if cursor_payload is None:

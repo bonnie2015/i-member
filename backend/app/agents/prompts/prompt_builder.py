@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Mapping
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field
-from app.agents.tools.business.scrm_client import REQUEST_USER_ID_CTX
+from app.agents.tools.business.execution_context import REQUEST_USER_ID_CTX
 
 _PROMPTS_DIR = Path(__file__).parent
 _PREFIX_FILE = _PROMPTS_DIR / "prompt_prefix.txt"

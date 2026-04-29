@@ -10,7 +10,7 @@ from app.agents.memory.service_memory import (
     load_recent_service_memories_limited,
     load_service_messages_limited,
 )
-from app.agents.tools.business.scrm_client import REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
+from app.agents.tools.business.execution_context import REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
 from app.config.logging import get_logger
 
 logger = get_logger("service_memory_tools")

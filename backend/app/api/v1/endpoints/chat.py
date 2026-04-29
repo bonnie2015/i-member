@@ -8,7 +8,7 @@ from app.agents.memory.service_memory import (
 )
 from app.api.v1.models.chat import ChatMessageRecord, ChatRequest, ChatResponse, LatestThreadResponse
 from app.security.jwt_auth import AuthContext, get_auth_context
-from app.agents.tools.business.scrm_client import REQUEST_ACCESS_TOKEN_CTX, REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
+from app.agents.tools.business.execution_context import REQUEST_ACCESS_TOKEN_CTX, REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
 from app.workflow.graph import (
     get_thread_runtime_messages,
     get_thread_owner_user_id,
