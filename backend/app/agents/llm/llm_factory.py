@@ -9,13 +9,14 @@ logger = get_logger("llm_factory")
 _LOCAL_MODELS = {
     "router": "qwen2.5:3b",
     "profile": "qwen2.5:3b",
+    "reply": "qwen2.5:3b",
 }
 _SUBGRAPH_MODEL = "deepseek-chat"
 
 
 @lru_cache(maxsize=4)
 def get_local_llm(
-    role: Literal["router", "profile"] = "router",
+    role: Literal["router", "profile", "reply"] = "router",
 ) -> BaseChatModel:
 
     from langchain_ollama import ChatOllama

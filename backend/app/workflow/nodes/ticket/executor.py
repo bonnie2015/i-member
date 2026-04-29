@@ -1,157 +1,293 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Dict, List
 
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages.ai import AIMessage
 from langchain_core.tools import BaseTool
+from langgraph.errors import GraphInterrupt
+from langgraph.prebuilt import create_react_agent
 
+from app.agents.llm.llm_factory import get_remote_llm
+from app.agents.prompts.prompt_builder import (
+    TicketExecuteRuntimePayload,
+    build_ticket_execute_system_prompt,
+)
+from app.agents.tools import ask_user_tool, get_scrm_tools, submit_step_result_tool
 from app.config.logging import get_logger
-from app.workflow.nodes.ticket.thinker import _build_ticket_tools
-from app.workflow.state import AgentState
+from app.workflow.state import (
+    TicketNextAction,
+    TicketState,
+    resolve_current_step_index,
+)
 
 logger = get_logger("ticket_executor")
 
+_MAX_RECENT_MESSAGES = 8
+_MAX_REACT_RECURSION = 12
 
-def _serialize_tool_result(result: Any) -> str:
-    if isinstance(result, str):
-        return result
+
+def _recent_messages(state: TicketState) -> List[BaseMessage]:
+    messages = list(state.get("messages") or [])
+    return [message for message in messages[-_MAX_RECENT_MESSAGES:] if isinstance(message, BaseMessage)]
+
+
+def _message_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: List[str] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(str(item.get("text") or ""))
+            else:
+                parts.append(str(item))
+        return "\n".join(parts)
+    return str(content or "")
+
+
+def _parse_json_text(text: str) -> Any:
+    raw_text = str(text or "").strip()
+    if not raw_text:
+        return raw_text
     try:
-        return json.dumps(result, ensure_ascii=False)
+        return json.loads(raw_text)
     except Exception:
-        return str(result)
+        return raw_text
 
 
-def _trim_text(value: Any, limit: int = 80) -> str:
+def _truncate_text(value: Any, *, limit: int = 240) -> str:
     text = str(value or "").strip()
+    text = re.sub(r"\s+", " ", text)
     if len(text) <= limit:
         return text
-    return text[:limit].rstrip() + "..."
+    return text[: limit - 3] + "..."
 
 
-def _tool_map(service_key: str) -> Dict[str, BaseTool]:
-    return {tool.name: tool for tool in _build_ticket_tools(service_key)}
+def _extract_final_result(messages: List[BaseMessage]) -> Dict[str, Any] | None:
+    for message in reversed(messages):
+        if not isinstance(message, ToolMessage):
+            continue
+        if str(getattr(message, "name", "") or "").strip() != "submit_step_result":
+            continue
+        parsed = _parse_json_text(getattr(message, "content", ""))
+        if isinstance(parsed, dict) and "step_status" in parsed:
+            return parsed
+    return None
 
 
-def _append_trace(existing: Any, item: Any) -> List[Any]:
-    trace = list(existing or [])
-    if item is not None:
-        trace.append(item)
-    return trace
+def _build_execution_result(messages: List[BaseMessage]) -> List[Dict[str, Any]]:
+    execution_result: List[Dict[str, Any]] = []
+    pending_calls: Dict[str, Dict[str, Any]] = {}
+    for message in messages:
+        if isinstance(message, AIMessage):
+            for tool_call in list(message.tool_calls or []):
+                pending_calls[str(tool_call.get("id") or "").strip()] = {
+                    "tool_name": str(tool_call.get("name") or "").strip(),
+                    "request": tool_call.get("args") or {},
+                }
+            continue
 
-
-def _merge_slots(existing: Any, incoming: Any) -> Dict[str, Any]:
-    base = dict(existing or {}) if isinstance(existing, dict) else {}
-    if isinstance(incoming, dict):
-        base.update(incoming)
-    return base
-
-
-async def executor_node(state: AgentState) -> Dict[str, Any]:
-    service_key = str(state.get("service_key") or "").strip()
-    if not service_key:
-        raise ValueError("ticket executor node requires service_key")
-
-    tool_runtime_messages = list(state.get("tool_messages") or [])
-    if not tool_runtime_messages:
-        raise ValueError("ticket executor node requires tool_messages")
-
-    last_message = tool_runtime_messages[-1]
-    if not isinstance(last_message, AIMessage):
-        raise TypeError(f"ticket executor node expected last message to be AIMessage, got {type(last_message).__name__}")
-
-    tool_calls = list(last_message.tool_calls or [])
-    if not tool_calls:
-        raise ValueError("ticket executor node expected tool_calls on last AIMessage")
-
-    tools = _tool_map(service_key)
-    tool_messages: List[ToolMessage] = []
-    trace = list(state.get("trace") or [])
-
-    for tool_call in tool_calls:
-        tool_name = str(tool_call.get("name") or "").strip()
-        tool_args = tool_call.get("args") or {}
-        tool_call_id = str(tool_call.get("id") or "").strip()
-        if not tool_name or not tool_call_id:
-            raise ValueError(f"invalid tool_call payload: {tool_call}")
-
-        if tool_name == "submit_final_answer":
-            result = dict(tool_args) if isinstance(tool_args, dict) else {}
-            reply = str(result.get("reply") or "").strip()
-            final_status = str(result.get("final_status") or "").strip() or "success"
-            final_reason = str(result.get("final_reason") or "").strip() or "ticket_completed"
-            merged_slots = _merge_slots(state.get("slots"), result.get("slots"))
-            tool_messages.append(
-                ToolMessage(
-                    tool_call_id=tool_call_id,
-                    name=tool_name,
-                    content=_serialize_tool_result(result),
-                )
-            )
-            trace = _append_trace(
-                trace,
+        if isinstance(message, ToolMessage):
+            tool_call_id = str(getattr(message, "tool_call_id", "") or "").strip()
+            pending = pending_calls.get(tool_call_id, {})
+            execution_result.append(
                 {
-                    "tool_name": tool_name,
-                    "tool_result": result,
-                },
+                    "tool_name": str(getattr(message, "name", "") or pending.get("tool_name") or "").strip(),
+                    "request": pending.get("request") or {},
+                    "response": _parse_json_text(getattr(message, "content", "")),
+                }
             )
-            trace = _append_trace(
-                trace,
-                {
-                    "type": "final",
-                    "tool_name": tool_name,
-                    "tool_result": {
-                        "final_status": final_status,
-                        "final_reason": final_reason,
-                    },
-                },
-            )
-            updates: Dict[str, Any] = {
-                "tool_messages": tool_messages,
-                "messages": [AIMessage(content=reply)],
-                "trace": trace,
-                "slots": merged_slots,
-                "final_reply": reply,
-                "final_status": final_status,
-                "final_reason": final_reason,
-            }
-            return updates
+    return execution_result
 
-        tool = tools.get(tool_name)
-        if tool is None:
-            raise ValueError(f"ticket executor node unresolved tool: {tool_name}")
 
-        result = await tool.ainvoke(tool_args)
-        tool_messages.append(
-            ToolMessage(
-                tool_call_id=tool_call_id,
-                name=tool_name,
-                content=_serialize_tool_result(result),
-            )
-        )
+def _resolve_step_tools(step: Dict[str, Any]) -> List[BaseTool]:
+    tool_registry: Dict[str, BaseTool] = {str(tool.name): tool for tool in get_scrm_tools()}
+    selected: List[BaseTool] = []
+    raw_tool_names = step.get("available_tools") or []
+    if isinstance(raw_tool_names, str):
+        raw_tool_names = [raw_tool_names]
+    if not isinstance(raw_tool_names, list):
+        raw_tool_names = []
 
-        if tool_name == "ask_user":
-            trace = _append_trace(
-                trace,
-                {
-                    "tool_name": tool_name,
-                    "tool_result": result,
-                },
-            )
-            return {
-                "tool_messages": tool_messages,
-                "trace": trace,
-            }
+    seen_tool_names: set[str] = set()
+    for item in raw_tool_names:
+        tool_name = str(item or "").strip()
+        if not tool_name or tool_name in seen_tool_names:
+            continue
+        seen_tool_names.add(tool_name)
+        tool = tool_registry.get(tool_name)
+        if tool is not None:
+            selected.append(tool)
+    return [*selected, ask_user_tool, submit_step_result_tool]
 
-        trace = _append_trace(
-            trace,
+
+def _apply_step_result(
+    *,
+    step: Dict[str, Any],
+    existing_slots: Dict[str, Any],
+    agent_result: Dict[str, Any],
+    expected_slots: List[str],
+) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    allowed_slot_keys = {
+        str(key).strip()
+        for key in [*(step.get("target_slots") or []), *expected_slots]
+        if str(key).strip()
+    }
+    merged_slots = dict(existing_slots)
+    current_slots = agent_result.get("current_slots")
+    if isinstance(current_slots, dict):
+        merged_slots.update(
             {
-                "tool_name": tool_name,
-                "tool_result": result,
-            },
+                str(key).strip(): value
+                for key, value in current_slots.items()
+                if str(key).strip() and str(key).strip() in allowed_slot_keys
+            }
         )
+
+    normalized_result = dict(agent_result)
+    normalized_result["failed_reason"] = str(normalized_result.get("failed_reason") or "").strip()
+    normalized_result["failed_type"] = str(normalized_result.get("failed_type") or "").strip()
+    step_status = str(normalized_result.get("step_status") or "pending").strip()
+
+    if step_status == "cancelled":
+        failed_reason = normalized_result["failed_reason"] or "user_cancelled"
+        if not failed_reason.startswith("executor:"):
+            failed_reason = f"executor:{failed_reason}"
+        normalized_result["failed_reason"] = failed_reason
+    elif step_status == "successed":
+        missing_slots = [
+            str(key).strip()
+            for key in (step.get("target_slots") or [])
+            if str(key).strip() and merged_slots.get(str(key).strip()) in (None, "", [], {})
+        ]
+        if missing_slots:
+            normalized_result["step_status"] = "failed"
+            normalized_result["failed_reason"] = "当前步骤判定成功，但缺少完成该步骤所需的目标槽位：" + ", ".join(missing_slots)
+            normalized_result["failed_type"] = "system"
+
+    updated_step = {
+        **dict(step),
+        "step_status": str(normalized_result.get("step_status") or "failed").strip() or "failed",
+        "failed_reason": str(normalized_result.get("failed_reason") or "").strip(),
+        "failed_type": str(normalized_result.get("failed_type") or "").strip(),
+        "try_process": [],
+    }
+    return merged_slots, updated_step
+
+
+async def _run_step_agent(state: TicketState, step: Dict[str, Any], slots: Dict[str, Any]) -> Dict[str, Any]:
+    thread_id = str(state.get("thread_id") or "").strip() or "unknown"
+    resolved_tools = _resolve_step_tools(step)
+    recent_messages = _recent_messages(state)
+
+    logger.info(
+        "[executor] thread_id=%s step_goal=%s target_slots=%s tools=%s",
+        thread_id,
+        str(step.get("goal") or "").strip()[:50],
+        list(step.get("target_slots") or []),
+        [str(tool.name) for tool in resolved_tools],
+    )
+
+    prompt = await build_ticket_execute_system_prompt(
+        user_context=state.get("user_context") or {},
+        runtime_context=TicketExecuteRuntimePayload(
+            goal=str(state.get("goal") or "").strip(),
+            step=step,
+            slots=slots,
+            expected_slots=list(state.get("expected_slots") or []),
+        ),
+    )
+    agent = create_react_agent(
+        model=get_remote_llm(role="ticket"),
+        tools=resolved_tools,
+        prompt=prompt,
+    )
+    agent_result = await agent.ainvoke(
+        {
+            "messages": [*recent_messages]
+        },
+        config={"recursion_limit": _MAX_REACT_RECURSION},
+    )
+    messages = list((agent_result or {}).get("messages") or [])
+    final_result = _extract_final_result(messages)
+
+    if final_result is not None:
+        final_result["try_process"] = _build_execution_result(messages)
+        logger.info(
+            "[executor] thread_id=%s step_status=%s",
+            thread_id,
+            final_result.get("step_status"),
+        )
+        return final_result
+
+    diagnostic_tail = [
+        {
+            "type": message.__class__.__name__,
+            "content": _truncate_text(_message_text(getattr(message, "content", ""))),
+        }
+        for message in messages[-3:]
+    ]
+    logger.error(
+        "[executor] thread_id=%s missing_final_result tail=%s",
+        thread_id,
+        json.dumps(diagnostic_tail, ensure_ascii=False),
+    )
+    raise ValueError("executor generate result failed")
+
+
+async def executor_node(state: TicketState) -> Dict[str, Any]:
+    steps = list(state.get("steps") or [])
+
+    if not steps:
+        return {
+            "next_action": TicketNextAction.END,
+            "final_status": "failed",
+            "final_reason": "no_executable_plan",
+        }
+
+    current_step_index = resolve_current_step_index(state, steps)
+    if current_step_index == len(steps):
+        return {
+            "next_action": TicketNextAction.REFLECT,
+            "current_step_index": current_step_index,
+        }
+
+    step = steps[current_step_index]
+    slots = dict(state.get("slots") or {})
+    expected_slots = [str(item).strip() for item in list(state.get("expected_slots") or []) if str(item).strip()]
+
+    try:
+        agent_result = await _run_step_agent(state, step, slots)
+        merged_slots, updated_step = _apply_step_result(
+            step=step,
+            existing_slots=slots,
+            agent_result=agent_result,
+            expected_slots=expected_slots,
+        )
+    except GraphInterrupt:
+        raise
+    except Exception as exc:
+        logger.exception("[executor_node] step agent failed: %s", exc)
+        merged_slots = slots
+        updated_step = {
+            **dict(step),
+            "step_status": "failed",
+            "failed_reason": str(exc),
+            "failed_type": "system",
+            "try_process": [{"tool_name": "executor", "request": {}, "response": {"error": str(exc)}}],
+        }
+
+    updated_steps = list(steps)
+    current = dict(updated_steps[current_step_index])
+    current.update(updated_step)
+    updated_steps[current_step_index] = current
 
     return {
-        "tool_messages": tool_messages,
-        "trace": trace,
+        "steps": updated_steps,
+        "slots": merged_slots,
+        "next_action": TicketNextAction.REFLECT,
+        "current_step_index": current_step_index,
     }

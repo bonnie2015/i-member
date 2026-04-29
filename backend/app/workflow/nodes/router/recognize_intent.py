@@ -37,13 +37,11 @@ def _build_router_messages_payload(messages: Sequence[BaseMessage]) -> str:
 
 async def recognize_router(
     messages: Sequence[BaseMessage],
-    user_context: Dict | None = None,
     thread_id: Optional[str] = None,
 ) -> RouterOutput:
     try:
         llm = get_local_llm(role="router").with_structured_output(RouterOutput)
         prompt = await build_router_system_prompt(
-            user_context=user_context,
             capability_context=PromptCapabilityContext(
                 ticket_skills_snapshot=load_skill_context(group="ticket"),
             ),

@@ -20,6 +20,7 @@ _STATE_FIELDS_TO_KEEP = {
     "channel",
     "user_context",
     "final_reply",
+    "recommended_products",
     "messages",
     "tool_messages",
 }
@@ -27,17 +28,6 @@ _STATE_FIELDS_TO_KEEP = {
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _render_trace_item(item: Any) -> str:
-    if isinstance(item, dict):
-        tool_name = str(item.get("tool_name") or "").strip()
-        tool_result = item.get("tool_result")
-        if tool_name:
-            if tool_result is None:
-                return tool_name
-            return f"{tool_name}: {tool_result}"
-    return str(item or "").strip()
 
 
 def _fallback_service_memory(state: AgentState) -> Dict[str, Any]:
@@ -51,14 +41,20 @@ def _fallback_service_memory(state: AgentState) -> Dict[str, Any]:
 
     raw_trace = state.get("trace")
     if isinstance(raw_trace, list):
-        trace = [_render_trace_item(item) for item in raw_trace if _render_trace_item(item)]
+        trace = []
+        for item in raw_trace:
+            if isinstance(item, dict):
+                tool_name = str(item.get("tool_name") or "").strip()
+                tool_result = item.get("tool_result")
+                text = f"{tool_name}: {tool_result}" if tool_name and tool_result is not None else tool_name
+            else:
+                text = str(item or "").strip()
+            if text:
+                trace.append(text)
     elif isinstance(raw_trace, str) and raw_trace.strip():
         trace = [raw_trace.strip()]
     else:
         trace = []
-    if not trace:
-        trace = ["post_process_fallback"]
-
     summary_parts = [part for part in [final_reply, f"status={final_status}", f"reason={final_reason}"] if part]
     if not summary_parts:
         summary_parts.append("post_process fallback summary")
@@ -74,11 +70,10 @@ def _fallback_service_memory(state: AgentState) -> Dict[str, Any]:
             if value:
                 facts[key] = value
 
-    return {
+    payload = {
         "intent": intent,
         "goal": reason or "服务收尾归档",
         "summary": "；".join(summary_parts)[:300],
-        "trace": trace[:12],
         "facts": facts,
         "final_status": final_status,
         "final_reason": final_reason,
@@ -86,24 +81,9 @@ def _fallback_service_memory(state: AgentState) -> Dict[str, Any]:
         "ended_at": ended_at,
         "is_continuous_with_last": False,
     }
-
-
-def _empty_value(value: Any) -> Any:
-    if isinstance(value, bool):
-        return False
-    if isinstance(value, dict):
-        return {}
-    if isinstance(value, list):
-        return []
-    if isinstance(value, tuple):
-        return []
-    if isinstance(value, set):
-        return []
-    if isinstance(value, int):
-        return 0
-    if isinstance(value, float):
-        return 0
-    return None
+    if trace:
+        payload["trace"] = trace[:12]
+    return payload
 
 
 def _build_clear_updates(state: AgentState) -> Dict[str, Any]:
@@ -111,7 +91,18 @@ def _build_clear_updates(state: AgentState) -> Dict[str, Any]:
     for key, value in state.items():
         if key in _STATE_FIELDS_TO_KEEP:
             continue
-        updates[key] = _empty_value(value)
+        if isinstance(value, bool):
+            updates[key] = False
+        elif isinstance(value, dict):
+            updates[key] = {}
+        elif isinstance(value, (list, tuple, set)):
+            updates[key] = []
+        elif isinstance(value, int):
+            updates[key] = 0
+        elif isinstance(value, float):
+            updates[key] = 0
+        else:
+            updates[key] = None
     return updates
 
 
@@ -119,7 +110,7 @@ def _log_background_task_result(task: asyncio.Task[Any], *, user_id: str) -> Non
     try:
         task.result()
     except Exception as e:
-        logger.warning("[post_process] async user facts extraction failed for %s: %s", user_id, e)
+        logger.warning("[post_process] user_id=%s user_facts_extraction_failed error=%s", user_id, e)
 
 
 def _spawn_user_facts_task(
@@ -139,11 +130,23 @@ def _spawn_user_facts_task(
 
 
 async def post_process_node(state: AgentState) -> Dict[str, Any]:
+    # 如果 current_subgraph 有值，不做任何处理，直接结束
+    current_subgraph = state.get("current_subgraph")
+    if current_subgraph:
+        logger.info(
+            "[post_process] thread_id=%s skip current_subgraph=%s",
+            str(state.get("thread_id") or "unknown"),
+            current_subgraph,
+        )
+        return {}
+
     updates: Dict[str, Any] = {}
     messages = list(state.get("messages") or [])
     tool_messages = list(state.get("tool_messages") or [])
     service_memory: Dict[str, Any]
     merge_with_last = False
+    thread_id = str(state.get("thread_id") or "").strip() or "unknown"
+    user_id = str(state.get("user_id") or "unknown")
 
     try:
         service_memory = await build_service_memory(
@@ -152,14 +155,12 @@ async def post_process_node(state: AgentState) -> Dict[str, Any]:
         )
         merge_with_last = bool(service_memory.pop("is_continuous_with_last", False))
     except Exception as e:
-        logger.warning("[post_process] summary build failed, using fallback memory: %s", e)
+        logger.warning("[post_process] thread_id=%s memory_build_failed error=%s", thread_id, e)
         service_memory = _fallback_service_memory(state)
         merge_with_last = False
 
     try:
         service_memory.pop("is_continuous_with_last", None)
-        user_id = str(state.get("user_id") or "unknown")
-        thread_id = str(state.get("thread_id") or "unknown")
         await save_service_memory(
             user_id=user_id,
             thread_id=thread_id,
@@ -167,13 +168,20 @@ async def post_process_node(state: AgentState) -> Dict[str, Any]:
             messages=messages,
             merge_with_last=merge_with_last,
         )
+        logger.info(
+            "[post_process] thread_id=%s intent=%s final_status=%s merge=%s",
+            thread_id,
+            service_memory.get("intent"),
+            service_memory.get("final_status"),
+            merge_with_last,
+        )
         _spawn_user_facts_task(
             user_id=user_id,
             messages=messages,
             service_memory_summary=str(service_memory.get("summary") or "").strip(),
         )
     except Exception as e:
-        logger.warning(f"[post_process] save service memory failed, state preserved without cleanup: {e}")
+        logger.warning("[post_process] thread_id=%s save_memory_failed error=%s", thread_id, e)
         return {}
 
     updates.update(_build_clear_updates(state))

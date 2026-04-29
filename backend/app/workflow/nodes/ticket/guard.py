@@ -96,19 +96,20 @@ async def guard_node(state: AgentState) -> Dict[str, Any]:
         try:
             response = await _recognize_service_once(state, messages=working_messages)
         except Exception as exc:
-            logger.exception("[ticket_guard] thread_id=%s remote guard failed: %s", thread_id, exc)
+            logger.error("[guard] thread_id=%s guard_unavailable error=%s", thread_id, exc)
             final_reply = "当前服务暂时较忙，请稍等片刻后再试；如果方便，也可以稍后重新发送您的问题。"
             return {
                 "service_key": None,
                 "final_status": "failed",
                 "final_reason": "guard_unavailable",
                 "final_reply": final_reply,
+                "current_subgraph": None,
                 "messages": [AIMessage(content=final_reply)],
             }
 
         if response.decision == "clarify":
             reply = str(response.clarify_question or "").strip() or "请补充更具体的服务信息，方便我继续帮您处理。"
-            logger.info("[ticket_guard] thread_id=%s clarify=%s", thread_id, reply)
+            logger.info("[guard] thread_id=%s decision=clarify", thread_id)
             resumed_user_message = str(interrupt({"reply": reply, "interaction": None}) or "").strip()
             working_messages = [
                 *working_messages,
@@ -125,45 +126,33 @@ async def guard_node(state: AgentState) -> Dict[str, Any]:
             final_reason = str(response.final_reason or "").strip() or "insufficient_information"
             final_status = str(response.final_status or "").strip() or "failed"
             logger.info(
-                "[ticket_guard] thread_id=%s end=%s",
+                "[guard] thread_id=%s decision=end final_status=%s reason=%s",
                 thread_id,
-                json.dumps(
-                    {
-                        "decision": response.decision,
-                        "reason": response.reason,
-                        "final_status": final_status,
-                        "final_reason": final_reason,
-                    },
-                    ensure_ascii=False,
-                ),
+                final_status,
+                final_reason,
             )
             return {
                 "service_key": None,
                 "final_status": final_status,
                 "final_reason": final_reason,
                 "final_reply": final_reply,
+                "current_subgraph": None,
                 "messages": [AIMessage(content=final_reply)],
             }
 
         if response.decision != "select_service":
             logger.error(
-                "[ticket_guard] thread_id=%s invalid structured output response=%s",
+                "[guard] thread_id=%s invalid_decision decision=%s",
                 thread_id,
-                json.dumps(response.model_dump(), ensure_ascii=False),
+                response.decision,
             )
             raise ValueError(f"unexpected guard decision: {response.decision}")
 
         selected = _resolve_selected_service(response)
         logger.info(
-            "[ticket_guard] thread_id=%s result=%s",
+            "[guard] thread_id=%s decision=select service_key=%s",
             thread_id,
-            json.dumps(
-                {
-                    "service_key": selected["service_key"],
-                    "reason": response.reason,
-                },
-                ensure_ascii=False,
-            ),
+            selected["service_key"],
         )
         return {
             "service_key": selected["service_key"],

@@ -8,6 +8,7 @@ from uuid import uuid4
 from app.config.logging import get_logger
 from app.config.redis import get_optional_redis_client
 from app.config.redis_keys import (
+    CHAT_LAST_THREAD_KEY,
     SERVICE_MEMORY_ARCHIVE_MESSAGES_KEY,
     SERVICE_MEMORY_RECENT_KEY,
 )
@@ -19,6 +20,10 @@ _RECENT_SERVICE_MEMORY_KEEP = 10
 
 def _recent_services_key(user_id: str, thread_id: str) -> str:
     return SERVICE_MEMORY_RECENT_KEY.format(user_id=user_id, thread_id=thread_id)
+
+
+def _last_thread_key(user_id: str) -> str:
+    return CHAT_LAST_THREAD_KEY.format(user_id=user_id)
 
 
 def _service_messages_archive_key(user_id: str, thread_id: str, service_id: str) -> str:
@@ -33,6 +38,16 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _parse_iso_datetime(value: Any) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
 def _serialize_messages(messages: List[Any]) -> List[Dict[str, Any]]:
     serialized: List[Dict[str, Any]] = []
     for message in messages:
@@ -42,6 +57,70 @@ def _serialize_messages(messages: List[Any]) -> List[Dict[str, Any]]:
         role = "user" if message.__class__.__name__ == "HumanMessage" else "assistant"
         serialized.append({"role": role, "content": content})
     return serialized
+
+
+async def save_last_chat_thread(user_id: str, thread_id: str) -> None:
+    redis = await get_optional_redis_client()
+    if not redis:
+        return
+    normalized_user_id = str(user_id or "").strip()
+    normalized_thread_id = str(thread_id or "").strip()
+    if not normalized_user_id or not normalized_thread_id:
+        return
+    try:
+        await redis.set(_last_thread_key(normalized_user_id), normalized_thread_id)
+    except Exception as e:
+        logger.warning(f"[service_memory] save last thread failed: {e}")
+
+
+async def load_last_chat_thread(user_id: str) -> str | None:
+    redis = await get_optional_redis_client()
+    if not redis:
+        return None
+    normalized_user_id = str(user_id or "").strip()
+    if not normalized_user_id:
+        return None
+    try:
+        thread_id = await redis.get(_last_thread_key(normalized_user_id))
+        normalized_thread_id = str(thread_id or "").strip()
+        if normalized_thread_id:
+            return normalized_thread_id
+
+        pattern = _recent_services_key(normalized_user_id, "*")
+        cursor = 0
+        latest_thread_id: str | None = None
+        latest_ended_at: datetime | None = None
+
+        while True:
+            cursor, keys = await redis.scan(cursor=cursor, match=pattern, count=100)
+            for key in keys:
+                thread_id_from_key = str(key).removeprefix(f"svc:recent:{normalized_user_id}:").strip()
+                if not thread_id_from_key:
+                    continue
+                last_raw = await redis.lindex(key, -1)
+                if not last_raw:
+                    continue
+                try:
+                    last_entry = json.loads(last_raw)
+                except Exception:
+                    continue
+                if not isinstance(last_entry, dict):
+                    continue
+                ended_at = _parse_iso_datetime(last_entry.get("ended_at") or last_entry.get("started_at"))
+                if ended_at is None:
+                    continue
+                if latest_ended_at is None or ended_at > latest_ended_at:
+                    latest_ended_at = ended_at
+                    latest_thread_id = thread_id_from_key
+            if cursor == 0:
+                break
+
+        if latest_thread_id:
+            await redis.set(_last_thread_key(normalized_user_id), latest_thread_id)
+        return latest_thread_id
+    except Exception as e:
+        logger.warning(f"[service_memory] load last thread failed: {e}")
+        return None
 
 
 async def save_service_memory(
@@ -191,3 +270,21 @@ async def load_service_messages_limited(messages_ref: str, *, offset: int = 0, l
         return []
     start = max(int(offset or 0), 0)
     return messages[start : start + limit]
+
+
+async def load_thread_archived_messages(user_id: str, thread_id: str) -> List[Dict[str, Any]]:
+    services = await load_recent_service_memories(user_id, thread_id)
+    if not services:
+        return []
+
+    archived_messages: List[Dict[str, Any]] = []
+    for service in services:
+        if not isinstance(service, dict):
+            continue
+        messages_ref = str(service.get("messages_ref") or "").strip()
+        if not messages_ref:
+            continue
+        messages = await load_service_messages(messages_ref)
+        if messages:
+            archived_messages.extend(messages)
+    return archived_messages

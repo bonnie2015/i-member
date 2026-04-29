@@ -25,7 +25,6 @@ async def router_node(state: AgentState):
     try:
         result = await recognize_router(
             messages=messages,
-            user_context=state.get("user_context") or {},
             thread_id=thread_id,
         )
         routed_intent = str(result.intent or "").strip()
@@ -34,6 +33,7 @@ async def router_node(state: AgentState):
 
         return {
             "intent": routed_intent,
+            "current_subgraph": routed_intent,
             "entry_message": user_input,
             "reason": result.reason,
         }
@@ -41,5 +41,6 @@ async def router_node(state: AgentState):
         logger.warning("[router] thread_id=%s error: %s", thread_id, e)
         return {
             "intent": "qa",
+            "current_subgraph": "qa",
             "reason": f"路由错误: {str(e)}",
         }
