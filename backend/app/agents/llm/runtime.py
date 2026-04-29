@@ -5,6 +5,10 @@ import json
 import time
 from typing import Any, Mapping, Sequence
 
+from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.prompt_values import PromptValue
+from langchain_core.runnables import RunnableConfig, RunnableLambda
+
 from app.config.logging import get_logger
 
 logger = get_logger("llm_runtime")
@@ -39,6 +43,21 @@ def _resolve_message_metrics(messages: Sequence[Any]) -> dict[str, int]:
         "message_count": len(messages),
         "input_characters": input_characters,
     }
+
+
+def _coerce_messages_input(value: Any) -> list[Any]:
+    if isinstance(value, PromptValue):
+        return list(value.to_messages())
+    if isinstance(value, Mapping):
+        messages = value.get("messages")
+        if isinstance(messages, Sequence) and not isinstance(messages, (str, bytes)):
+            return list(messages)
+        return [HumanMessage(content=json.dumps(_json_safe(value), ensure_ascii=False))]
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return list(value)
+    if isinstance(value, BaseMessage):
+        return [value]
+    return [HumanMessage(content=str(value or ""))]
 
 
 def _serialize_messages(messages: Sequence[Any]) -> list[dict[str, Any]]:
@@ -188,7 +207,7 @@ async def invoke_with_usage_logging(
         **metrics,
     }
     logger.info("[llm_runtime] %s", json.dumps({"event": "llm_call_start", **log_base}, ensure_ascii=False))
-    logger.info(
+    logger.debug(
         "[llm_runtime] %s",
         json.dumps(
             {
@@ -199,7 +218,7 @@ async def invoke_with_usage_logging(
             ensure_ascii=False,
         ),
     )
-    logger.info(
+    logger.debug(
         "[llm_runtime] %s",
         json.dumps(
             {
@@ -248,3 +267,115 @@ async def invoke_with_usage_logging(
             ),
         )
         raise
+
+
+async def invoke_model_input_with_usage_logging(
+    *,
+    llm: Any,
+    model_input: Any,
+    node: str,
+    thread_id: str | None = None,
+    user_id: str | None = None,
+    provider: str = "unknown",
+    timeout_seconds: float | None = None,
+    config: RunnableConfig | None = None,
+) -> tuple[Any, dict[str, int]]:
+    messages = _coerce_messages_input(model_input)
+    metrics = _resolve_message_metrics(messages)
+    log_base = {
+        "node": node,
+        "provider": provider,
+        "model": _resolve_model_name(llm),
+        "thread_id": str(thread_id or "").strip() or "unknown",
+        "user_id": str(user_id or "").strip() or "unknown",
+        **metrics,
+    }
+    logger.info("[llm_runtime] %s", json.dumps({"event": "llm_call_start", **log_base}, ensure_ascii=False))
+    logger.debug(
+        "[llm_runtime] %s",
+        json.dumps(
+            {
+                "event": "llm_call_payload",
+                **log_base,
+                "messages": _serialize_messages(messages),
+            },
+            ensure_ascii=False,
+        ),
+    )
+    logger.debug(
+        "[llm_runtime] %s",
+        json.dumps(
+            {
+                "event": "llm_call_native_payload",
+                **log_base,
+                **_build_native_payload(llm, messages),
+            },
+            ensure_ascii=False,
+        ),
+    )
+
+    started = time.perf_counter()
+    try:
+        invoke_coro = llm.ainvoke(model_input, config=config)
+        response = await asyncio.wait_for(invoke_coro, timeout=timeout_seconds) if timeout_seconds else await invoke_coro
+        usage = extract_usage(response)
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        logger.info(
+            "[llm_runtime] %s",
+            json.dumps(
+                {
+                    "event": "llm_call_end",
+                    **log_base,
+                    "success": True,
+                    "latency_ms": latency_ms,
+                    **usage,
+                },
+                ensure_ascii=False,
+            ),
+        )
+        return response, usage
+    except Exception as exc:
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        logger.warning(
+            "[llm_runtime] %s",
+            json.dumps(
+                {
+                    "event": "llm_call_end",
+                    **log_base,
+                    "success": False,
+                    "latency_ms": latency_ms,
+                    "error_type": exc.__class__.__name__,
+                    "error": str(exc),
+                },
+                ensure_ascii=False,
+            ),
+        )
+        raise
+
+
+def with_usage_logging(
+    llm: Any,
+    *,
+    node: str,
+    thread_id: str | None = None,
+    user_id: str | None = None,
+    provider: str = "unknown",
+    timeout_seconds: float | None = None,
+) -> RunnableLambda:
+    async def _ainvoke(model_input: Any, config: RunnableConfig | None = None) -> Any:
+        response, _ = await invoke_model_input_with_usage_logging(
+            llm=llm,
+            model_input=model_input,
+            node=node,
+            thread_id=thread_id,
+            user_id=user_id,
+            provider=provider,
+            timeout_seconds=timeout_seconds,
+            config=config,
+        )
+        return response
+
+    def _invoke(_: Any, __: RunnableConfig | None = None) -> Any:
+        raise RuntimeError("with_usage_logging only supports async invocation")
+
+    return RunnableLambda(_invoke, afunc=_ainvoke, name=f"{node}_logged_model")

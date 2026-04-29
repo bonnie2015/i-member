@@ -33,6 +33,26 @@ BASE_ORDERS = [
         "status_label": "已签收",
         "amount": 699,
         "items_summary": "小熊电饭煲 4L",
+        "items": [
+            {
+                "order_item_id": "OI202603050001",
+                "product_id": "P_RICE_4L_A",
+                "sku_id": "SKU_RICE_4L_WHITE",
+                "name": "小熊电饭煲 4L 白色",
+                "qty": 1,
+                "price": 699,
+                "image": "https://mock.local/rice-4l-white.png",
+            },
+            {
+                "order_item_id": "OI202603050002",
+                "product_id": "P_RICE_4L_B",
+                "sku_id": "SKU_RICE_4L_BLACK",
+                "name": "小熊电饭煲 4L 黑色",
+                "qty": 1,
+                "price": 699,
+                "image": "https://mock.local/rice-4l-black.png",
+            },
+        ],
         "created_at": "2026-03-05T10:00:00+08:00",
     },
     {
@@ -41,6 +61,17 @@ BASE_ORDERS = [
         "status_label": "已签收",
         "amount": 59,
         "items_summary": "纯棉袜子 3双装",
+        "items": [
+            {
+                "order_item_id": "OI202603060001",
+                "product_id": "P_SOCK_3PACK",
+                "sku_id": "SKU_SOCK_3PACK_MIX",
+                "name": "纯棉袜子 3双装",
+                "qty": 1,
+                "price": 59,
+                "image": "https://mock.local/socks-3pack.png",
+            }
+        ],
         "created_at": "2026-03-06T09:30:00+08:00",
     },
 ]
@@ -105,6 +136,7 @@ BASE_PRODUCTS = [
         "price": 699,
         "status": "on_sale",
         "stock": 24,
+        "image": "https://mock.local/product/rice-4l-white.png",
         "created_at": "2026-03-01T10:00:00+08:00",
         "updated_at": "2026-04-17T09:00:00+08:00",
     },
@@ -115,6 +147,7 @@ BASE_PRODUCTS = [
         "price": 699,
         "status": "on_sale",
         "stock": 6,
+        "image": "https://mock.local/product/rice-4l-black.png",
         "created_at": "2026-03-08T10:00:00+08:00",
         "updated_at": "2026-04-18T08:30:00+08:00",
     },

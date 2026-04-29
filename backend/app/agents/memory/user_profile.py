@@ -61,7 +61,7 @@ async def _build_profile_summary(profile: Dict[str, Any]) -> str:
 
 
 async def load_user_profile(user_id: str, fields: Optional[str] = None) -> Dict[str, Any]:
-    from app.agents.tools.scrm_tools import call_scrm_api
+    from app.agents.tools.business.scrm_tools import call_scrm_api
 
     cache_key = _profile_cache_key(user_id, fields)
     redis = await get_optional_redis_client()

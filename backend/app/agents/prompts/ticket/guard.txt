@@ -38,8 +38,7 @@
 - 若 `decision="clarify"`：
   - `service_key` 填当前最可能相关的已注册服务；若完全无法判断则填 `null`
   - `goal` 填当前最可能的服务目标；若还无法确定则填 `null`
-  - `clarify_question` 必须是一句可直接发给用户的话
-  - 追问应优先引导用户从当前已注册服务范围中确认目标，或补充更具体、可直接判断服务动作的信息；不要自由扩展 snapshot 之外的业务选项
+  - `clarify_question` 必须是一句可直接发给用户的话，追问应优先引导用户从当前已注册服务范围中确认目标，或补充更具体、可直接判断服务动作的信息；如果在追问中用户意图切换为当前能力范围外的意图，则结束服务
   - `final_reply=null`
   - `final_status=null`
   - `final_reason=null`
@@ -53,7 +52,7 @@
 - 若 `decision="end_service"`：
   - `goal=null`
   - `clarify_question=null`
-  - `final_reply` 必须直接对用户说明当前为什么先结束本次服务，并给出下次服务引导
+  - `final_reply` 必须直接对用户说明当前为什么先结束本次服务，询问用户接下来想进行哪些咨询或服务
   - `final_status` 只能为 `failed`
   - `final_reason` 应使用简洁的系统原因，例如 `out_of_scope` 或 `insufficient_information`
 

@@ -81,6 +81,12 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
       - PORT=3000
+    volumes:
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/script.js:/app/script.js
+      - ./frontend/style.css:/app/style.css
+      - ./frontend/server.js:/app/server.js
+      - ./frontend/assets:/app/assets
     networks:
       - imember-network
     restart: unless-stopped

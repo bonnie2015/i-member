@@ -313,7 +313,7 @@ async def _extract_user_fact_changes(
     existing_store = await load_user_facts_store(user_id)
     llm = get_remote_llm(role="postprocess").with_structured_output(UserFactsExtractionOutput)
     prompt = await build_user_facts_extraction_system_prompt(
-        runtime_payload=UserFactsRuntimePayload(
+        runtime_context=UserFactsRuntimePayload(
             existing_core_facts=[item.fact for item in existing_store.core_facts],
             current_service_memory_summary=str(service_memory_summary or "").strip(),
         )

@@ -1,6 +1,6 @@
 ---
 name: refund-ticket
-description: 处理退货/换货相关诉求，基于订单、商品与工单接口完成查询、确认、创建与追踪。
+description: 处理退货/换货相关诉求。
 available_tools: get_user_orders, get_order_detail, search_product, get_product_detail, get_product_stock, create_ticket, get_ticket, get_tickets
 clarify_labels: 退货, 换货, 退换货进度查询
 ---
@@ -21,8 +21,8 @@ clarify_labels: 退货, 换货, 退换货进度查询
 
 ## 核心规则
 
-1. 订单类工单必须包含消费渠道 `source_channel`：
-   `wechat` / `app` / `web` / `jd` / `tmall` / `douyin` / `api` / `offline`
+1. 订单类工单必须包含消费渠道 `source_channel`，你有权利处理以下任何消费渠道的订单：
+   `wechat` 微信小程序/ `app` APP/ `web` 官网/ `jd` 京东/ `tmall` 天猫/ `douyin` 抖音/ `api` API/ `offline` 线下
 2. 写操作（创建工单）前必须确认：
    - 退/换商品
    - 数量

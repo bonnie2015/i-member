@@ -49,6 +49,13 @@ tests/
 test/
 
 .trae/
+.codex/
+.codex*/
 .DS_Store
 .claude/
 skills-snapshot.md
+*testcase*
+*test_case*
+backend/app/run_*_cases.py
+backend/app/scripts/*sampling*.json
+tmp_*case*.json

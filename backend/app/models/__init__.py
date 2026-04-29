@@ -1,25 +1,27 @@
 """Shared application models."""
 
+from app.models.display_product import DisplayProductCard
 from app.models.interaction import (
-    ConfirmActionDetail,
-    ConfirmOrderDetail,
-    ConfirmProductDetail,
-    ConfirmTicketDetail,
     InteractionItem,
+    InteractionEntity,
     InteractionPayload,
-    SelectOrderDetail,
-    SelectProductDetail,
-    SelectTicketDetail,
+    OrderInteractionDetail,
+    OrderPreviewItem,
+    ProductInteractionDetail,
+    TicketInteractionDetail,
+    build_interaction_payload,
+    normalize_interaction_entities,
 )
 
 __all__ = [
-    "ConfirmActionDetail",
-    "ConfirmOrderDetail",
-    "ConfirmProductDetail",
-    "ConfirmTicketDetail",
+    "DisplayProductCard",
+    "InteractionEntity",
     "InteractionItem",
     "InteractionPayload",
-    "SelectOrderDetail",
-    "SelectProductDetail",
-    "SelectTicketDetail",
+    "OrderInteractionDetail",
+    "OrderPreviewItem",
+    "ProductInteractionDetail",
+    "TicketInteractionDetail",
+    "build_interaction_payload",
+    "normalize_interaction_entities",
 ]

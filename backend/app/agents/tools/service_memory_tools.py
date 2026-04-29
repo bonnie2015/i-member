@@ -10,7 +10,7 @@ from app.agents.memory.service_memory import (
     load_recent_service_memories_limited,
     load_service_messages_limited,
 )
-from app.agents.tools.scrm_client import REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
+from app.agents.tools.business.scrm_client import REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
 from app.config.logging import get_logger
 
 logger = get_logger("service_memory_tools")
@@ -56,7 +56,17 @@ def _not_found_error(kind: str) -> Dict[str, Any]:
 
 @tool("get_service_memories", args_schema=GetServiceMemoriesInput)
 async def get_service_memories_tool(limit: int = 1) -> Dict[str, Any]:
-    """查询当前线程最近 N 条完整服务记忆。"""
+    """查询当前线程最近 N 条完整服务记忆。
+
+    仅在现有信息无法确定用户具体要求，或缺少与历史服务有关的数据，判断非常有必要对历史服务记录进行查找时，才调用此工具。
+
+    参数:
+        limit: 查询最近几条服务记忆，默认 1，最大 5
+
+    返回:
+        items: 服务记忆列表
+        count: 返回条数
+    """
     identity = _current_identity()
     if identity is None:
         return _missing_context_error()
@@ -84,7 +94,22 @@ async def get_service_messages_tool(
     offset: int = 0,
     limit: int = 20,
 ) -> Dict[str, Any]:
-    """查询指定服务或当前线程最近一次服务的原始消息，可按 offset/limit 裁剪。"""
+    """查询指定服务或当前线程最近一次服务的原始消息，可按 offset/limit 裁剪。
+
+    仅在现有信息无法确定用户具体要求，或缺少与历史服务有关的数据，判断非常有必要对历史服务记录进行查找时，才调用此工具。
+
+    参数:
+        messages_ref: 服务消息归档引用（可选），为空时默认读取当前线程最近一次服务的原始消息
+        offset: 消息起始偏移，默认 0
+        limit: 返回消息条数，默认 20，最大 50
+
+    返回:
+        messages_ref: 服务消息归档引用
+        offset: 消息起始偏移
+        limit: 返回消息条数
+        count: 实际返回条数
+        messages: 消息列表
+    """
     identity = _current_identity()
     if identity is None:
         return _missing_context_error()

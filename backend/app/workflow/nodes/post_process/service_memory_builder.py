@@ -45,7 +45,7 @@ def _render_trace_item(item: Any) -> str:
     return str(item or "").strip()
 
 
-def _normalize_trace(raw_trace: Any, *, intent: str, final_status: str, final_reply: str) -> List[str]:
+def _normalize_trace(raw_trace: Any) -> List[str]:
     if isinstance(raw_trace, list):
         trace = [_render_trace_item(item) for item in raw_trace if _render_trace_item(item)]
     elif isinstance(raw_trace, str) and raw_trace.strip():
@@ -55,13 +55,7 @@ def _normalize_trace(raw_trace: Any, *, intent: str, final_status: str, final_re
 
     if trace:
         return trace[:8]
-
-    fallback = [f"识别为{intent or 'unknown'}服务"]
-    if final_status:
-        fallback.append(f"服务以{final_status}状态结束")
-    if final_reply:
-        fallback.append(f"最终答复：{_trim_text(final_reply, 80)}")
-    return fallback
+    return []
 
 
 def _serialize_messages(messages: Sequence[BaseMessage]) -> List[Dict[str, str]]:
@@ -74,46 +68,6 @@ def _serialize_messages(messages: Sequence[BaseMessage]) -> List[Dict[str, str]]
             }
         )
     return payload
-
-
-def _extract_common_facts(state: Mapping[str, Any], intent: str) -> Dict[str, Any]:
-    common_facts: Dict[str, Any] = {}
-    if intent:
-        common_facts["intent"] = intent
-    return common_facts
-
-
-def _extract_ticket_facts(state: Mapping[str, Any]) -> Dict[str, Any]:
-    facts: Dict[str, Any] = {}
-    service_key = str(state.get("service_key") or "").strip()
-    if service_key:
-        facts["service_key"] = service_key
-
-    slots = state.get("slots") or {}
-    if isinstance(slots, dict):
-        for key in ("order_id", "biz_id", "ticket_id", "ticket_type", "product_id", "sku_id"):
-            value = str(slots.get(key) or "").strip()
-            if value:
-                facts[key] = value
-    return facts
-
-
-def _extract_qa_facts(state: Mapping[str, Any]) -> Dict[str, Any]:
-    facts: Dict[str, Any] = {}
-    qa_turn_count = int(state.get("qa_turn_count") or 0)
-    if qa_turn_count > 0:
-        facts["qa_turn_count"] = qa_turn_count
-    return facts
-
-
-def _extract_facts(state: Mapping[str, Any], intent: str) -> Dict[str, Any]:
-    facts = _extract_common_facts(state, intent)
-    # 各服务独有事实在这里分开扩展，最终仍合并为一个扁平 facts。
-    if intent == "ticket":
-        facts.update(_extract_ticket_facts(state))
-    elif intent == "qa":
-        facts.update(_extract_qa_facts(state))
-    return facts
 
 
 async def _summarize_service_memory(
@@ -132,7 +86,7 @@ async def _summarize_service_memory(
     llm = get_remote_llm(role="postprocess").with_structured_output(ServiceMemorySummary)
     prompt = await build_post_process_system_prompt(
         user_context=user_context,
-        runtime_payload=PostProcessRuntimePayload(
+        runtime_context=PostProcessRuntimePayload(
             intent=intent,
             reason=reason,
             final_status=final_status,
@@ -177,13 +131,26 @@ async def build_service_memory(
     final_reason = str(state.get("final_reason") or "").strip()
     started_at = str(state.get("started_at") or "").strip() or _utc_now_iso()
     ended_at = _utc_now_iso()
-    trace = _normalize_trace(
-        state.get("trace"),
-        intent=intent,
-        final_status=final_status,
-        final_reply=final_reply,
-    )
-    facts = _extract_facts(state, intent)
+    raw_trace = state.get("trace")
+    trace = _normalize_trace(raw_trace)
+    facts: Dict[str, Any] = {}
+    if intent:
+        facts["intent"] = intent
+    if intent == "ticket":
+        service_key = str(state.get("service_key") or "").strip()
+        if service_key:
+            facts["service_key"] = service_key
+        slots = state.get("slots") or {}
+        if isinstance(slots, dict):
+            for key in ("order_id", "biz_id", "ticket_id", "ticket_type", "product_id", "sku_id"):
+                value = str(slots.get(key) or "").strip()
+                if value:
+                    facts[key] = value
+    elif intent == "qa":
+        qa_turn_count = int(state.get("qa_turn_count") or 0)
+        if qa_turn_count > 0:
+            facts["qa_turn_count"] = qa_turn_count
+
     last_service = await load_last_service_memory(user_id, thread_id) if thread_id else {}
 
     summary_result = await _summarize_service_memory(
@@ -202,26 +169,16 @@ async def build_service_memory(
     summary = _trim_text(summary_result.summary, 300)
     is_continuous = bool(summary_result.is_continuous)
 
-    merged_trace = trace
     merged_facts = facts
     if is_continuous and isinstance(last_service, Mapping):
-        previous_trace = last_service.get("trace") or []
-        if isinstance(previous_trace, str):
-            previous_trace = [previous_trace]
-        merged_trace = []
-        for item in [*previous_trace, *trace]:
-            text = str(item or "").strip()
-            if text and text not in merged_trace:
-                merged_trace.append(text)
         previous_facts = last_service.get("facts") or {}
         if isinstance(previous_facts, Mapping):
             merged_facts = {**dict(previous_facts), **facts}
 
-    return {
+    payload = {
         "intent": intent,
         "goal": _trim_text(goal or str((last_service or {}).get("goal") or ""), 120),
         "summary": summary,
-        "trace": merged_trace,
         "facts": merged_facts,
         "final_status": final_status,
         "final_reason": final_reason,
@@ -229,3 +186,8 @@ async def build_service_memory(
         "ended_at": ended_at,
         "is_continuous_with_last": is_continuous,
     }
+    if intent == "recommend" and isinstance(raw_trace, list) and raw_trace:
+        payload["trace"] = raw_trace
+    elif trace:
+        payload["trace"] = trace
+    return payload

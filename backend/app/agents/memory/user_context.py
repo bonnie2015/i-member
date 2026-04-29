@@ -3,24 +3,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, Optional
 
-from app.agents.memory.service_memory import load_last_service_memory
 from app.agents.memory.user_facts import load_user_facts
 from app.agents.memory.user_profile import load_user_profile
 from app.config.logging import get_logger
 
 
 logger = get_logger("user_context")
-
-
-async def _load_service_memory_summary(user_id: str, thread_id: str) -> str:
-    if not str(thread_id or "").strip():
-        return ""
-    try:
-        service = await load_last_service_memory(user_id, thread_id)
-        return str((service or {}).get("summary") or "").strip()
-    except Exception as e:
-        logger.warning("[user_context] service memory summary load failed for %s: %s", user_id, e)
-        return ""
 
 
 async def _load_profile_summary(user_id: str) -> str:
@@ -40,13 +28,11 @@ async def _load_user_facts(user_id: str) -> list[str]:
 
 
 async def load_user_context(user_id: str, thread_id: Optional[str] = None) -> Dict[str, Any]:
-    service_memory_summary, profile_summary, user_facts = await asyncio.gather(
-        _load_service_memory_summary(user_id, thread_id or ""),
+    profile_summary, user_facts = await asyncio.gather(
         _load_profile_summary(user_id),
         _load_user_facts(user_id),
     )
     context = {
-        "service_memory_summary": service_memory_summary,
         "profile_summary": profile_summary,
         "user_facts": user_facts or [],
     }

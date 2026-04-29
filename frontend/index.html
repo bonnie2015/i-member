@@ -5,90 +5,101 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>品牌伙伴 · 智能客服</title>
     <link rel="stylesheet" href="style.css">
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 </head>
 <body>
-    <div class="app">
-        <!-- 侧边栏 -->
-        <aside class="sidebar">
-            <div class="brand">
-                <div class="brand-avatar">B</div>
-                <div class="brand-info">
-                    <span class="brand-name">品牌伙伴</span>
-                    <span class="brand-tag">会员专属服务</span>
+    <div class="page-shell">
+        <div class="page-glow page-glow-left"></div>
+        <div class="page-glow page-glow-right"></div>
+        <div class="page-texture"></div>
+
+        <div class="app">
+            <aside class="sidebar">
+                <section class="sidebar-figure">
+                    <model-viewer
+                        class="spline-frame"
+                        src="assets/aa934f0e80cc97de7f5db7f4a3657cf0.glb"
+                        alt="鬼冢虎 3D 形象"
+                        camera-controls
+                        auto-rotate
+                        shadow-intensity="0"
+                        exposure="1"
+                        interaction-prompt="none"
+                        touch-action="pan-y"
+                        style="--poster-color: transparent;"
+                    ></model-viewer>
+                </section>
+
+                <div class="ui-cache" aria-hidden="true">
+                    <div class="member-level" id="memberLevel">加载中...</div>
+                    <div class="member-points" id="memberPoints"></div>
+                    <div class="member-name" id="memberName"></div>
                 </div>
-            </div>
+            </aside>
 
-            <div class="member-card" id="memberCard">
-                <div class="member-level" id="memberLevel">加载中...</div>
-                <div class="member-points" id="memberPoints"></div>
-                <div class="member-name" id="memberName"></div>
-            </div>
-
-            <nav class="quick-actions">
-                <p class="nav-label">快捷服务</p>
-                <button class="quick-btn" data-msg="我想退货">退换货申请</button>
-                <button class="quick-btn" data-msg="帮我升级会员">会员升级</button>
-                <button class="quick-btn" data-msg="我要申请折扣权益">权益申请</button>
-                <button class="quick-btn" data-msg="我要投诉">提交投诉</button>
-                <button class="quick-btn" data-msg="积分怎么兑换？">积分规则</button>
-            </nav>
-
-            <div class="status-indicator">
-                <span class="dot" id="statusDot"></span>
-                <span id="statusText">连接中...</span>
-            </div>
-        </aside>
-
-        <!-- 主聊天区 -->
-        <main class="chat-main">
-            <header class="chat-header">
-                <div class="chat-title">
-                    <span class="chat-title-name">智能客服助手</span>
-                    <span class="chat-title-sub" id="threadLabel"></span>
-                </div>
-                <button class="new-chat-btn" id="newChatBtn" title="新对话">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
-                    新对话
-                </button>
-            </header>
-
-            <div class="messages" id="messages">
-                <div class="welcome-msg">
-                    <div class="welcome-avatar">B</div>
-                    <div class="welcome-text">
-                        <p>您好！我是您的专属品牌伙伴 👋</p>
-                        <p>有什么我可以帮您的吗？退换货、权益升级、商品咨询都可以找我～</p>
+            <main class="chat-main">
+                <header class="chat-header">
+                    <div class="chat-hero">
+                        <div class="chat-kicker">ONITSUKA TIGER</div>
+                        <div class="chat-title">
+                            <span class="chat-title-name">私享品牌伙伴</span>
+                            <span class="chat-title-sub" id="threadLabel"></span>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- 交互区：追问 / 确认 / 选择 / 普通输入 -->
-            <div class="interaction-area" id="interactionArea">
-                <!-- 选择面板（select） -->
-                <div class="action-panel select-panel hidden" id="selectPanel">
-                    <div class="action-panel-label" id="selectLabel"></div>
-                    <div class="option-cards" id="optionCards"></div>
-                </div>
-
-                <!-- 普通输入 -->
-                <div class="input-panel" id="inputPanel">
-                    <div class="input-row">
-                        <textarea id="messageInput" rows="1" placeholder="请输入您的问题..." maxlength="500"></textarea>
-                        <button id="sendBtn" class="send-btn" disabled>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    <div class="chat-header-actions">
+                        <button class="new-chat-btn" id="newChatBtn" title="新对话" aria-label="新对话">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
                             </svg>
                         </button>
                     </div>
-                    <div class="input-footer">
-                        <span id="charCount">0 / 500</span>
-                        <span class="hint" id="inputHint"></span>
+                </header>
+
+                <section class="conversation-shell">
+                    <div class="messages" id="messages">
+                        <div class="welcome-msg">
+                            <div class="welcome-avatar">BP</div>
+                            <div class="welcome-text">
+                                <p id="welcomeGreeting">Hi，欢迎回来。</p>
+                                <p id="welcomeFollowup">今天想看看新鞋、聊聊搭配，还是顺手处理一下会员服务？我会把节奏放轻一点，陪你慢慢挑到顺眼的那一双。</p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
-        </main>
+
+                    <div class="interaction-area" id="interactionArea">
+                        <div class="action-panel select-panel hidden" id="selectPanel">
+                            <div class="action-panel-label" id="selectLabel"></div>
+                            <div class="option-cards" id="optionCards"></div>
+                        </div>
+
+                        <div class="input-panel" id="inputPanel">
+                            <div class="input-panel-head">
+                                <span class="input-title">发起一轮新的咨询</span>
+                                <span class="input-caption">一句话说出你的需求，我会继续追问并帮你缩小范围</span>
+                            </div>
+                            <div class="input-row">
+                                <textarea id="messageInput" rows="1" placeholder="例如：帮我找几双白色、经典一点的 MEXICO 66..." maxlength="500"></textarea>
+                                <button id="sendBtn" class="send-btn" disabled>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="input-footer">
+                                <span id="charCount">0 / 500</span>
+                                <span class="hint" id="inputHint"></span>
+                                <div class="status-indicator status-indicator-bottom">
+                                    <span class="dot" id="statusDot"></span>
+                                    <span id="statusText">连接中...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
     </div>
 
     <script src="script.js"></script>
