@@ -9,6 +9,7 @@
 
 const API_ORIGIN = window.location.protocol === 'file:' ? 'http://localhost:8000' : 'http://localhost:8000';
 const API = `${API_ORIGIN}/api/v1`;
+const MOCK_PROXY_ORIGIN = window.location.protocol === 'file:' ? 'http://localhost:3000' : '';
 const MOCK_USER_ID = 'bonnie20260412';
 const MOCK_JWT_ISS = 'member-ops-agent';
 const MOCK_JWT_SECRET = 'change-me-in-production';
@@ -32,11 +33,30 @@ const $memberName    = document.getElementById('memberName');
 const $newChatBtn    = document.getElementById('newChatBtn');
 const $welcomeGreeting = document.getElementById('welcomeGreeting');
 const $welcomeFollowup = document.getElementById('welcomeFollowup');
+const $chatTabBtn = document.getElementById('chatTabBtn');
+const $mockTabBtn = document.getElementById('mockTabBtn');
+const $chatView = document.getElementById('chatView');
+const $mockDataView = document.getElementById('mockDataView');
+const $mockRefreshBtn = document.getElementById('mockRefreshBtn');
+const $mockResetBtn = document.getElementById('mockResetBtn');
+const $mockStatus = document.getElementById('mockStatus');
+const $mockSummaryGrid = document.getElementById('mockSummaryGrid');
+const $mockOrders = document.getElementById('mockOrders');
+const $mockTickets = document.getElementById('mockTickets');
+const $mockUserPanel = document.getElementById('mockUserPanel');
+const $mockOrderCount = document.getElementById('mockOrderCount');
+const $mockTicketCount = document.getElementById('mockTicketCount');
+const $mockTicketModal = document.getElementById('mockTicketModal');
+const $mockTicketModalBackdrop = document.getElementById('mockTicketModalBackdrop');
+const $mockTicketModalClose = document.getElementById('mockTicketModalClose');
+const $mockTicketModalContent = document.getElementById('mockTicketModalContent');
 
 // ── State ─────────────────────────────────────────────────────
 let threadId   = null;
 let uiState    = 'idle'; // idle | select | waiting
 let latestThreadLoaded = false;
+let mockDataLoaded = false;
+let mockTickets = [];
 
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -53,9 +73,48 @@ function bindEvents() {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); }
     });
     $newChatBtn.addEventListener('click', newChat);
+    $chatTabBtn.addEventListener('click', () => switchView('chat'));
+    $mockTabBtn.addEventListener('click', () => switchView('mock'));
+    $mockRefreshBtn.addEventListener('click', () => loadMockData());
+    $mockResetBtn.addEventListener('click', () => resetMockData());
+    $mockTicketModalBackdrop.addEventListener('click', closeMockTicketModal);
+    $mockTicketModalClose.addEventListener('click', closeMockTicketModal);
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !$mockTicketModal.classList.contains('hidden')) {
+            closeMockTicketModal();
+        }
+    });
+    $mockTickets.addEventListener('click', event => {
+        const target = event.target.closest('[data-ticket-id]');
+        if (!target) return;
+        openMockTicketModal(target.dataset.ticketId);
+    });
+    $mockOrders.addEventListener('click', event => {
+        if (event.target.closest('a')) return;
+        const target = event.target.closest('[data-order-card]');
+        if (!target) return;
+        target.classList.toggle('expanded');
+    });
     document.querySelectorAll('.quick-btn').forEach(btn => {
         btn.addEventListener('click', () => sendText(btn.dataset.msg));
     });
+}
+
+function switchView(view) {
+    const isMock = view === 'mock';
+    $chatView.classList.toggle('hidden', isMock);
+    $mockDataView.classList.toggle('hidden', !isMock);
+    $chatTabBtn.classList.toggle('active', !isMock);
+    $mockTabBtn.classList.toggle('active', isMock);
+    $chatTabBtn.setAttribute('aria-selected', String(!isMock));
+    $mockTabBtn.setAttribute('aria-selected', String(isMock));
+    $newChatBtn.classList.toggle('hidden', isMock);
+    if (isMock && !mockDataLoaded) {
+        loadMockData();
+    }
+    if (!isMock) {
+        $messageInput.focus();
+    }
 }
 
 // ── Health check ──────────────────────────────────────────────
@@ -222,10 +281,11 @@ function normalizeLatestThreadResponse(payload) {
                 role: textOrEmpty(item && item.role),
                 content: textOrEmpty(item && item.content),
                 products: normalizeProducts(item && item.products),
+                interaction: normalizeInteraction(item && item.interaction),
             }))
             .filter(item => {
                 if (item.role !== 'user' && item.role !== 'assistant') return false;
-                if (item.role === 'assistant') return !!item.content || item.products.length > 0;
+                if (item.role === 'assistant') return !!item.content || item.products.length > 0 || !!item.interaction;
                 return !!item.content;
             })
         : [];
@@ -431,29 +491,289 @@ async function restoreLatestThread() {
             return;
         }
 
-        renderHistoryMessages(normalized.messages);
+        const restoredInteraction = renderHistoryMessages(normalized.messages);
         threadId = normalized.thread_id;
         syncThreadLabel();
-        setUiState('idle');
+        if (!restoredInteraction) {
+            setUiState('idle');
+        }
     } catch (err) {
         console.error(err);
     }
+}
+
+// ── Mock data view ────────────────────────────────────────────
+async function loadMockData() {
+    setMockStatus('加载中...');
+    try {
+        const res = await fetch(`${MOCK_PROXY_ORIGIN}/mock-scrm/state`);
+        const payload = await safeReadJson(res);
+        if (!res.ok) throw new Error(formatApiError(res.status, payload));
+        const state = payload && payload.state ? payload.state : {};
+        mockDataLoaded = true;
+        renderMockData(state, payload && payload.state_file);
+    } catch (err) {
+        console.error(err);
+        setMockStatus(formatUserError(err));
+    }
+}
+
+async function resetMockData() {
+    setMockStatus('正在重置...');
+    try {
+        const res = await fetch(`${MOCK_PROXY_ORIGIN}/mock-scrm/reset`, { method: 'POST' });
+        const payload = await safeReadJson(res);
+        if (!res.ok) throw new Error(formatApiError(res.status, payload));
+        const state = payload && payload.state ? payload.state : {};
+        mockDataLoaded = true;
+        renderMockData(state, payload && payload.state_file);
+    } catch (err) {
+        console.error(err);
+        setMockStatus(formatUserError(err));
+    }
+}
+
+function renderMockData(state, stateFile) {
+    const orders = Array.isArray(state.orders) ? state.orders : [];
+    const tickets = Array.isArray(state.tickets) ? state.tickets : [];
+    mockTickets = tickets;
+    const profile = extractFirstProfile(state.user_profiles);
+    const score = isObj(state.score) ? state.score : {};
+    const level = isObj(state.user_level) ? state.user_level : {};
+
+    $mockOrderCount.textContent = `${orders.length} 条`;
+    $mockTicketCount.textContent = `${tickets.length} 条`;
+    $mockSummaryGrid.innerHTML = renderMockSummary(orders, tickets, score, level);
+    $mockOrders.innerHTML = orders.length ? orders.map(renderMockOrder).join('') : renderMockEmpty('暂无订单');
+    $mockTickets.innerHTML = tickets.length ? tickets.map(renderMockTicket).join('') : renderMockEmpty('暂无工单');
+    $mockUserPanel.innerHTML = renderMockUser(profile, score, level);
+    setMockStatus(stateFile ? `数据文件：${stateFile}` : '已加载');
+}
+
+function renderMockSummary(orders, tickets, score, level) {
+    const unsigned = orders.filter(order => ['shipping', 'delivering'].includes(textOrEmpty(order.status))).length;
+    const openTickets = tickets.filter(ticket => !['closed', 'done'].includes(textOrEmpty(ticket.status))).length;
+    return [
+        ['订单', orders.length],
+        ['未签收', unsigned],
+        ['工单', tickets.length],
+        ['处理中', openTickets],
+        ['积分', score.score_balance ?? '-'],
+        ['等级', pickText(level.level, level.level_code, '-')],
+    ].map(([label, value]) => `
+        <div class="mock-summary-item">
+            <span>${escHtml(String(label))}</span>
+            <strong>${escHtml(String(value))}</strong>
+        </div>
+    `).join('');
+}
+
+function renderMockOrder(order) {
+    const items = Array.isArray(order.items) ? order.items : [];
+    return `
+        <article class="mock-record mock-order-card" data-order-card>
+            <div class="mock-record-head">
+                <div>
+                    <div class="mock-record-id">${escHtml(pickText(order.order_id))}</div>
+                    <div class="mock-record-meta">${escHtml(pickText(order.created_at))} · ${escHtml(pickText(order.source_channel))}</div>
+                </div>
+                <span class="mock-chip">${escHtml(pickText(order.status_label, order.status))}</span>
+            </div>
+            <div class="mock-record-line">
+                <span>${escHtml(pickText(order.items_summary))}</span>
+                <strong>¥${escHtml(String(order.amount ?? '-'))}</strong>
+            </div>
+            <div class="mock-order-toggle">点击展开 ${items.length} 件商品明细</div>
+            <div class="mock-order-detail">
+                ${order.logistics ? renderMockLogistics(order.logistics) : ''}
+                <div class="mock-product-grid">
+                    ${items.map(item => renderMockOrderItem(item)).join('')}
+                </div>
+            </div>
+        </article>
+    `;
+}
+
+function renderMockLogistics(logistics) {
+    if (!isObj(logistics)) return '';
+    return `
+        <div class="mock-logistics">
+            <span>${escHtml(pickText(logistics.company))}</span>
+            <span>${escHtml(pickText(logistics.latest_trace))}</span>
+            <span>${escHtml(pickText(logistics.estimated_delivery_time))}</span>
+        </div>
+    `;
+}
+
+function renderMockOrderItem(item) {
+    const image = escAttr(pickText(item.image));
+    const name = escHtml(pickText(item.name));
+    const url = escAttr(pickText(item.official_url));
+    const body = `
+        <div class="mock-product-image">
+            ${image ? `<img src="${image}" alt="${name}">` : ''}
+        </div>
+        <div class="mock-product-copy">
+            <div class="mock-product-name">${name}</div>
+            <div class="mock-product-meta">ID ${escHtml(pickText(item.product_id))} · Color ${escHtml(pickText(item.color_id))}</div>
+            <div class="mock-product-meta">${escHtml(pickText(item.style))} · ${escHtml(pickText(item.size))} · ×${escHtml(pickText(item.qty))}</div>
+            <div class="mock-product-price">¥${escHtml(pickText(item.price))}</div>
+        </div>
+    `;
+    return url
+        ? `<a class="mock-product" href="${url}" target="_blank" rel="noopener noreferrer">${body}</a>`
+        : `<div class="mock-product">${body}</div>`;
+}
+
+function renderMockTicket(ticket) {
+    return `
+        <button class="mock-ticket-row" type="button" data-ticket-id="${escAttr(pickText(ticket.ticket_id))}">
+            <span>${escHtml(pickText(ticket.title, ticket.ticket_id))}</span>
+            <strong>${escHtml(pickText(ticket.status_label, ticket.status))}</strong>
+        </button>
+    `;
+}
+
+function openMockTicketModal(ticketId) {
+    const ticket = mockTickets.find(item => pickText(item.ticket_id) === ticketId);
+    if (!ticket) return;
+    $mockTicketModalContent.innerHTML = renderMockTicketDetail(ticket);
+    $mockTicketModal.classList.remove('hidden');
+    $mockTicketModal.setAttribute('aria-hidden', 'false');
+    $mockTicketModalClose.focus();
+}
+
+function closeMockTicketModal() {
+    $mockTicketModal.classList.add('hidden');
+    $mockTicketModal.setAttribute('aria-hidden', 'true');
+    $mockTicketModalContent.innerHTML = '';
+}
+
+function renderMockTicketDetail(ticket) {
+    const timeline = Array.isArray(ticket.timeline) ? ticket.timeline : [];
+    const images = Array.isArray(ticket.images) ? ticket.images : [];
+    return `
+        <div class="mock-modal-kicker">${escHtml(pickText(ticket.ticket_id))}</div>
+        <h2 class="mock-modal-title" id="mockTicketModalTitle">${escHtml(pickText(ticket.title))}</h2>
+        <div class="mock-modal-meta-row">
+            <span class="mock-chip">${escHtml(pickText(ticket.status_label, ticket.status))}</span>
+            <span>${escHtml(pickText(ticket.ticket_type))}</span>
+            <span>${escHtml(pickText(ticket.source_channel))}</span>
+        </div>
+        <div class="mock-detail-grid">
+            ${renderMockDetailItem('工单号', ticket.ticket_id)}
+            ${renderMockDetailItem('订单号', ticket.order_id)}
+            ${renderMockDetailItem('商品项', ticket.order_item_id)}
+            ${renderMockDetailItem('创建时间', ticket.created_at)}
+            ${renderMockDetailItem('预计完成', ticket.expected_finish_time)}
+            ${renderMockDetailItem('最新进展', ticket.latest_progress)}
+        </div>
+        <section class="mock-detail-section">
+            <h3>问题描述</h3>
+            <p>${escHtml(pickText(ticket.description, ticket.content))}</p>
+        </section>
+        ${images.length ? `
+            <section class="mock-detail-section">
+                <h3>图片</h3>
+                <div class="mock-detail-images">
+                    ${images.map(url => `<a href="${escAttr(url)}" target="_blank" rel="noopener noreferrer">${escHtml(url)}</a>`).join('')}
+                </div>
+            </section>
+        ` : ''}
+        ${timeline.length ? `
+            <section class="mock-detail-section">
+                <h3>时间线</h3>
+                <div class="mock-timeline">
+                    ${timeline.map(item => `
+                        <div class="mock-timeline-item">
+                            <span>${escHtml(pickText(item.time))}</span>
+                            <strong>${escHtml(pickText(item.action))}</strong>
+                            <em>${escHtml(pickText(item.operator))}</em>
+                        </div>
+                    `).join('')}
+                </div>
+            </section>
+        ` : ''}
+    `;
+}
+
+function renderMockDetailItem(label, value) {
+    const text = pickText(value);
+    if (!text) return '';
+    return `
+        <div class="mock-detail-item">
+            <span>${escHtml(label)}</span>
+            <strong>${escHtml(text)}</strong>
+        </div>
+    `;
+}
+
+function renderMockUser(profile, score, level) {
+    const basic = isObj(profile.basic_info) ? profile.basic_info : {};
+    const value = isObj(profile.value_segment) ? profile.value_segment : {};
+    const pref = isObj(profile.preferences) ? profile.preferences : {};
+    const records = Array.isArray(score.records) ? score.records : [];
+    return `
+        <article class="mock-record">
+            <div class="mock-record-head">
+                <div>
+                    <div class="mock-record-id">${escHtml(pickText(basic.name, '用户'))}</div>
+                    <div class="mock-record-meta">${escHtml(pickText(basic.city))} · ${escHtml(pickText(basic.member_level, level.level))}</div>
+                </div>
+                <span class="mock-chip">${escHtml(pickText(level.level_code, level.level))}</span>
+            </div>
+            <div class="mock-user-grid">
+                <div><span>积分</span><strong>${escHtml(pickText(score.score_balance))}</strong></div>
+                <div><span>距下级</span><strong>${escHtml(pickText(level.score_to_next))}</strong></div>
+                <div><span>客单价</span><strong>¥${escHtml(pickText(value.avg_order_value))}</strong></div>
+                <div><span>RFM</span><strong>${escHtml(pickText(value.rfm_level))}</strong></div>
+            </div>
+            <div class="mock-record-desc">${escHtml(arrayText(pref.product_categories))} · ${escHtml(arrayText(pref.product_series))}</div>
+            <div class="mock-score-list">
+                ${records.slice(0, 4).map(item => `<div><span>${escHtml(pickText(item.reason))}</span><strong>${escHtml(pickText(item.change))}</strong></div>`).join('')}
+            </div>
+        </article>
+    `;
+}
+
+function extractFirstProfile(userProfiles) {
+    if (!isObj(userProfiles)) return {};
+    const first = Object.values(userProfiles)[0];
+    return first && isObj(first.profile) ? first.profile : {};
+}
+
+function arrayText(value) {
+    return Array.isArray(value) ? value.filter(Boolean).join(' / ') : pickText(value);
+}
+
+function renderMockEmpty(text) {
+    return `<div class="mock-empty">${escHtml(text)}</div>`;
+}
+
+function setMockStatus(text) {
+    $mockStatus.textContent = text;
 }
 
 function renderHistoryMessages(messages) {
     $messages.innerHTML = '';
 
     let rendered = 0;
+    let latestAssistantHasInteraction = false;
     for (const message of messages) {
         if (!message) continue;
         if (message.role === 'user') {
             if (!message.content) continue;
             addUserBubble(message.content);
             rendered += 1;
+            latestAssistantHasInteraction = false;
             continue;
         }
         if (message.role === 'assistant') {
-            addBotBubble(message.content, message.products || []);
+            const botRow = addBotBubble(message.content, message.products || []);
+            latestAssistantHasInteraction = false;
+            if (message.interaction) {
+                latestAssistantHasInteraction = handleInteraction(botRow, message.content, message.interaction);
+            }
             rendered += 1;
         }
     }
@@ -461,6 +781,7 @@ function renderHistoryMessages(messages) {
     if (rendered === 0) {
         $messages.appendChild(createWelcomeMessage());
     }
+    return latestAssistantHasInteraction;
 }
 
 // ── Interaction handling ──────────────────────────────────────
@@ -470,10 +791,12 @@ function handleInteraction(targetRow, reply, interaction) {
         const label = textOrEmpty(reply) ? '' : defaultInteractionLabel(interaction.interaction_type);
         appendInlineInteraction(targetRow, options, label);
         setUiState('select');
+        return true;
     } else {
         setUiState('idle');
         $inputHint.textContent = '请继续回复';
         $messageInput.focus();
+        return false;
     }
 }
 
@@ -615,7 +938,7 @@ function getInteractionDetailKind(interactionType, detail) {
     if (type.includes('product')) return 'product';
     if (type.includes('ticket')) return 'ticket';
     if (Array.isArray(detail.items_preview)) return 'order';
-    if (detail.ticket_id || detail.ticket_type || detail.biz_id) return 'ticket';
+    if (detail.ticket_id || detail.ticket_type) return 'ticket';
     if (detail.product_id || detail.order_item_id || detail.sku_id) return 'product';
     if (detail.order_id) return 'order';
     return '';
@@ -695,7 +1018,6 @@ function renderTicketInteractionCard(option, detail, fallbackLabel) {
     const status = escHtml(pickText(detail.status_label, detail.status));
     const ticketId = escHtml(pickText(detail.ticket_id));
     const ticketType = escHtml(pickText(detail.ticket_type));
-    const bizId = escHtml(pickText(detail.biz_id));
     return `
         <div class="interaction-card interaction-card-ticket">
             <div class="interaction-card-head">
@@ -709,7 +1031,6 @@ function renderTicketInteractionCard(option, detail, fallbackLabel) {
                 ${ticketId ? `<span class="interaction-meta">工单号 · ${ticketId}</span>` : ''}
                 ${ticketType ? `<span class="interaction-meta">类型 · ${ticketType}</span>` : ''}
             </div>
-            ${bizId ? `<div class="interaction-meta">业务号 · ${bizId}</div>` : ''}
         </div>
     `;
 }

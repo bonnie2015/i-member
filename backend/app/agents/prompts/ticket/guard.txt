@@ -5,10 +5,6 @@
 - 基于完整的对话判断当前对话应该进入哪个已注册的工单服务。
 - 当前服务不明确时，进行确定性澄清追问。
 
-【用户信息】
-
-{user_context}
-
 【系统能力】
 
 {capability_context}
@@ -16,6 +12,8 @@
 【判断原则】
 
 - 只允许从快照中的已注册服务里选择一个 name 作为 `service_key`。
+- 如果当前工单服务已经结束，或用户明确表示没有更多工单需求，选择 `decision="end_service"`。
+- 如果用户最新发言是非工单新需求，选择 `decision="end_service"`；不要处理该新需求，`reply` 提醒用户当前工单服务已结束，并引导用户下一轮重新发送新需求。
 - 若当前能力范围内无法解决用户诉求，直接结束服务，不要继续追问。
 - 若当前业务在能力范围内，但具体服务不明确，先追问澄清，不要直接结束。
 - 服务匹配以已注册服务的 `<description>`、`<clarify_labels>` 和 `<location>` 为准，不要求与用户原话逐字一致。
@@ -38,23 +36,14 @@
 - 若 `decision="clarify"`：
   - `service_key` 填当前最可能相关的已注册服务；若完全无法判断则填 `null`
   - `goal` 填当前最可能的服务目标；若还无法确定则填 `null`
-  - `clarify_question` 必须是一句可直接发给用户的话，追问应优先引导用户从当前已注册服务范围中确认目标，或补充更具体、可直接判断服务动作的信息；如果在追问中用户意图切换为当前能力范围外的意图，则结束服务
-  - `final_reply=null`
-  - `final_status=null`
-  - `final_reason=null`
+  - `reply` 必须是一句可直接发给用户的话，追问应优先引导用户从当前已注册服务范围中确认目标，或补充更具体、可直接判断服务动作的信息；如果在追问中用户意图切换为当前能力范围外的意图，则结束服务
 - 若 `decision="select_service"`：
   - `service_key` 必须对应到快照中的一个已注册服务
   - `goal` 必须用一句简短、明确、可执行的话概括当前轮服务目标，供后续处理员参考
-  - `clarify_question=null`
-  - `final_reply=null`
-  - `final_status=null`
-  - `final_reason=null`
+  - `reply=null`
 - 若 `decision="end_service"`：
   - `goal=null`
-  - `clarify_question=null`
-  - `final_reply` 必须直接对用户说明当前为什么先结束本次服务，询问用户接下来想进行哪些咨询或服务
-  - `final_status` 只能为 `failed`
-  - `final_reason` 应使用简洁的系统原因，例如 `out_of_scope` 或 `insufficient_information`
+  - `reply` 必须直接说明当前工单服务已结束；如果用户提出非工单新需求，必须引导用户下一轮重新发送该需求
 
 【输出格式】
 
@@ -64,10 +53,7 @@
   "service_key": "已注册服务 name 或 null",
   "goal": "当前轮服务目标，或 null",
   "reason": "一句话说明当前为什么选择这个服务，或为什么无法继续",
-  "clarify_question": null,
-  "final_reply": null,
-  "final_status": null,
-  "final_reason": null
+  "reply": "澄清或结束时发给用户的话；select_service 时为 null"
 }}
 ```
 

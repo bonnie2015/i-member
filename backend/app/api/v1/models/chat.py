@@ -26,6 +26,7 @@ class ChatMessageRecord(BaseModel):
     role: str = Field(..., description="消息角色，仅返回 user / assistant。")
     content: str = Field(..., description="消息内容。")
     products: list[DisplayProductCard] = Field(default_factory=list, description="该条消息携带的商品卡片。")
+    interaction: Optional[InteractionPayload] = Field(None, description="该条消息携带的结构化交互信息。")
 
 
 class LatestThreadResponse(BaseModel):

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any, Dict, List, Literal, Optional
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
@@ -23,6 +22,7 @@ from app.workflow.state import AgentState
 logger = get_logger("ticket_guard")
 
 _REMOTE_GUARD_TIMEOUT_SECONDS = 45
+_RECENT_DIALOG_MESSAGE_LIMIT = 4
 
 
 class GuardOutput(BaseModel):
@@ -30,22 +30,17 @@ class GuardOutput(BaseModel):
     service_key: Optional[str] = None
     goal: Optional[str] = None
     reason: str
-    clarify_question: Optional[str] = None
-    final_reply: Optional[str] = None
-    final_status: Optional[str] = None
-    final_reason: Optional[str] = None
+    reply: Optional[str] = None
 
 
-def _messages_payload(messages: List[BaseMessage]) -> List[Dict[str, str]]:
-    payload: List[Dict[str, str]] = []
-    for message in messages:
-        payload.append(
-            {
-                "role": getattr(message, "type", message.__class__.__name__),
-                "content": str(getattr(message, "content", "") or "").strip(),
-            }
-        )
-    return payload
+def _recent_dialog_messages(messages: List[BaseMessage]) -> List[BaseMessage]:
+    dialog_messages = [
+        message
+        for message in messages
+        if isinstance(message, (HumanMessage, AIMessage))
+        and str(getattr(message, "content", "") or "").strip()
+    ]
+    return dialog_messages[-_RECENT_DIALOG_MESSAGE_LIMIT:]
 
 
 async def _recognize_service_once(
@@ -54,7 +49,6 @@ async def _recognize_service_once(
     messages: List[BaseMessage],
 ) -> GuardOutput:
     prompt = await build_ticket_guard_system_prompt(
-        user_context=state.get("user_context") or {},
         capability_context=PromptCapabilityContext(
             ticket_skills_snapshot=load_skill_context(group="ticket"),
         ),
@@ -62,7 +56,7 @@ async def _recognize_service_once(
     llm = get_remote_llm(role="ticket").with_structured_output(GuardOutput)
     llm_messages = [
         SystemMessage(content=prompt),
-        HumanMessage(content=json.dumps({"messages": _messages_payload(messages)}, ensure_ascii=False)),
+        *_recent_dialog_messages(messages),
     ]
     response, _ = await invoke_with_usage_logging(
         llm=llm,
@@ -108,7 +102,7 @@ async def guard_node(state: AgentState) -> Dict[str, Any]:
             }
 
         if response.decision == "clarify":
-            reply = str(response.clarify_question or "").strip() or "请补充更具体的服务信息，方便我继续帮您处理。"
+            reply = str(response.reply or "").strip() or "请补充更具体的服务信息，方便我继续帮您处理。"
             logger.info("[guard] thread_id=%s decision=clarify", thread_id)
             resumed_user_message = str(interrupt({"reply": reply, "interaction": None}) or "").strip()
             working_messages = [
@@ -120,11 +114,11 @@ async def guard_node(state: AgentState) -> Dict[str, Any]:
 
         if response.decision == "end_service":
             final_reply = (
-                str(response.final_reply or "").strip()
-                or "当前信息还不足以继续本次服务。您可以稍后补充更具体的信息后再次发起服务。"
+                str(response.reply or "").strip()
+                or "当前工单服务已结束。如果您有其他新需求，可以在下一轮对话中重新告诉我，我会继续为您处理。"
             )
-            final_reason = str(response.final_reason or "").strip() or "insufficient_information"
-            final_status = str(response.final_status or "").strip() or "failed"
+            final_reason = str(response.reason or "").strip() or "ticket_service_ended"
+            final_status = "cancelled"
             logger.info(
                 "[guard] thread_id=%s decision=end final_status=%s reason=%s",
                 thread_id,
@@ -157,6 +151,4 @@ async def guard_node(state: AgentState) -> Dict[str, Any]:
         return {
             "service_key": selected["service_key"],
             "goal": selected["goal"],
-            "final_status": None,
-            "final_reason": None,
         }

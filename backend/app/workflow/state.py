@@ -4,7 +4,7 @@ from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
 
 
-class TicketNextAction(str, Enum):
+class TicketNextNode(str, Enum):
     PLAN = "plan"
     EXECUTOR = "executor"
     REFLECT = "reflect"
@@ -20,12 +20,12 @@ class AgentState(TypedDict, total=False):
     user_context: Optional[Dict[str, Any]]
 
     messages: Annotated[List[BaseMessage], add_messages]
-    tool_messages: Annotated[List[BaseMessage], add_messages]
     final_reply: Optional[str]
-    recommended_products: List[Dict[str, Any]]
+    trace: List[Any]
+    started_at: Optional[str]
 
     # 意图路由
-    intent: Optional[Literal["ticket", "qa", "recommend"]]
+    intent: Optional[Literal["ticket", "qa", "recommend", "direct_reply"]]
     reason: Optional[str]
 
     # 当前子图（有值时优先进入该子图，跳过意图识别）
@@ -34,6 +34,7 @@ class AgentState(TypedDict, total=False):
     # 推荐子图专用
     recommend_loop: int
     recommend_context: Optional[Dict[str, Any]]
+    recommended_products: List[Dict[str, Any]]
 
     # QA 专用
     qa_turn_count: int
@@ -45,75 +46,10 @@ class AgentState(TypedDict, total=False):
     steps: List[Dict[str, Any]]
     current_step_index: int
     expected_slots: List[str]
-    next_action: Optional[TicketNextAction]
+    ticket_next_node: Optional[TicketNextNode]
+    executor_retry_count: int
     replan_count: int
+    planner_reason: Optional[str]
     slots: Optional[Dict[str, Any]]
     final_status: Optional[Literal["success", "failed", "cancelled"]]
     final_reason: Optional[str]
-    trace: List[Any]
-    started_at: Optional[str]
-
-
-class TicketState(AgentState, total=False):
-    pass
-
-
-def first_pending_step_index(steps: List[Dict[str, Any]]) -> Optional[int]:
-    for index, step in enumerate(steps):
-        if not isinstance(step, dict):
-            continue
-        if str(step.get("step_status") or "pending").strip() != "successed":
-            return index
-    return None
-
-
-def normalize_current_step_index(
-    steps: List[Dict[str, Any]],
-    current_step_index: int,
-) -> Optional[int]:
-    if not steps:
-        return None
-
-    if 0 <= current_step_index < len(steps):
-        step = steps[current_step_index]
-        if isinstance(step, dict) and str(step.get("step_status") or "pending").strip() != "successed":
-            return current_step_index
-
-    return first_pending_step_index(steps)
-
-
-def is_valid_current_step_index(
-    steps: List[Dict[str, Any]],
-    current_step_index: int,
-) -> bool:
-    if 0 <= current_step_index < len(steps):
-        step = steps[current_step_index]
-        if isinstance(step, dict) and str(step.get("step_status") or "pending").strip() != "successed":
-            return True
-    return False
-
-
-def resolve_current_step_index(
-    state: AgentState,
-    steps: List[Dict[str, Any]],
-) -> Optional[int]:
-    state_index = int(state.get("current_step_index") or 0)
-
-    if not steps:
-        if state_index != 0:
-            state["current_step_index"] = 0
-        return None
-
-    if is_valid_current_step_index(steps, state_index):
-        return state_index
-
-    corrected_index = normalize_current_step_index(steps, state_index)
-    if corrected_index is not None:
-        if corrected_index != state_index:
-            state["current_step_index"] = corrected_index
-        return corrected_index
-
-    completed_index = len(steps)
-    if state_index != completed_index:
-        state["current_step_index"] = completed_index
-    return completed_index

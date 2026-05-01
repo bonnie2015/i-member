@@ -1,25 +1,19 @@
-import json
-
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.agents.memory.service_memory import (
+from app.api.v1.chat_history import (
+    append_chat_message,
+    load_chat_messages,
     load_last_chat_thread,
-    load_thread_archived_messages,
-    save_last_chat_thread,
 )
 from app.api.v1.models.chat import ChatMessageRecord, ChatRequest, ChatResponse, LatestThreadResponse
 from app.security.jwt_auth import AuthContext, get_auth_context
 from app.agents.tools.business.execution_context import REQUEST_ACCESS_TOKEN_CTX, REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
 from app.workflow.graph import (
-    get_thread_runtime_messages,
     get_thread_owner_user_id,
     invoke_member_ops,
 )
 import uuid
 
 router = APIRouter()
-
-_PRODUCTS_MARKER = "[products]"
-_INTERACTION_MARKER = "[interaction]"
 
 
 def _parse_history_message(raw_message: dict) -> ChatMessageRecord | None:
@@ -29,35 +23,10 @@ def _parse_history_message(raw_message: dict) -> ChatMessageRecord | None:
 
     content = str(raw_message.get("content") or "").strip()
     products = [item for item in list(raw_message.get("products") or []) if isinstance(item, dict)]
-    if role == "assistant" and content:
-        content, embedded_products = _extract_products_from_content(content)
-        if not products:
-            products = embedded_products
-    if not content and not products:
+    interaction = raw_message.get("interaction")
+    if not content and not products and interaction is None:
         return None
-    return ChatMessageRecord(role=role, content=content, products=products)
-
-
-def _extract_products_from_content(content: str) -> tuple[str, list[dict]]:
-    text = str(content or "").strip()
-    products = []
-
-    products_index = text.find(_PRODUCTS_MARKER)
-    if products_index >= 0:
-        products_raw = text[products_index + len(_PRODUCTS_MARKER):].strip()
-        text = text[:products_index].strip()
-        try:
-            parsed = json.loads(products_raw)
-            if isinstance(parsed, list):
-                products = parsed
-        except Exception:
-            products = []
-
-    interaction_index = text.find(_INTERACTION_MARKER)
-    if interaction_index >= 0:
-        text = text[:interaction_index].strip()
-
-    return text, products
+    return ChatMessageRecord(role=role, content=content, products=products, interaction=interaction)
 
 
 @router.get("/chat/latest-thread", response_model=LatestThreadResponse)
@@ -69,15 +38,10 @@ async def latest_thread(
     if not thread_id:
         return LatestThreadResponse(thread_id=None, messages=[])
 
-    owner_user_id = await get_thread_owner_user_id(thread_id)
-    if owner_user_id and owner_user_id != user_id:
-        return LatestThreadResponse(thread_id=None, messages=[])
-
-    archived_messages = await load_thread_archived_messages(user_id, thread_id)
-    runtime_messages = await get_thread_runtime_messages(thread_id)
+    raw_messages = await load_chat_messages(user_id, thread_id)
     messages = [
         parsed
-        for parsed in (_parse_history_message(item) for item in [*archived_messages, *runtime_messages])
+        for parsed in (_parse_history_message(item) for item in raw_messages)
         if parsed is not None
     ]
     return LatestThreadResponse(thread_id=thread_id, messages=messages)
@@ -102,14 +66,32 @@ async def chat(
     thread_id = request.thread_id or f"{user_id}_{uuid.uuid4().hex[:8]}"
     thread_context_token = REQUEST_THREAD_ID_CTX.set(thread_id)
     try:
+        await append_chat_message(
+            user_id,
+            thread_id,
+            {
+                "role": "user",
+                "content": request.message,
+            },
+        )
         result = await invoke_member_ops(
             user_message=request.message,
             user_id=user_id,
             thread_id=thread_id,
             channel=request.channel,
         )
-        await save_last_chat_thread(user_id, thread_id)
-        return ChatResponse(**result)
+        response = ChatResponse(**result)
+        await append_chat_message(
+            user_id,
+            thread_id,
+            {
+                "role": "assistant",
+                "content": response.reply,
+                "interaction": response.interaction.model_dump(mode="json") if response.interaction else None,
+                "products": [item.model_dump(mode="json") for item in response.products],
+            },
+        )
+        return response
     finally:
         REQUEST_THREAD_ID_CTX.reset(thread_context_token)
         REQUEST_ACCESS_TOKEN_CTX.reset(context_token)

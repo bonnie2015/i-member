@@ -25,9 +25,9 @@ class OrderPreviewItem(BaseModel):
 
     order_item_id: str = ""
     product_id: str = ""
-    name: str = ""
-    qty: int | str | None = None
-    image_url: str = ""
+    product_name: str = ""
+    order_item_quantity: int | str | None = None
+    product_image: str = ""
 
 
 class OrderInteractionDetail(BaseModel):
@@ -36,7 +36,7 @@ class OrderInteractionDetail(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     order_id: str
-    status_label: str = ""
+    order_status_label: str = ""
     source_channel: str = ""
     items_preview: list[OrderPreviewItem] = Field(default_factory=list)
 
@@ -50,9 +50,9 @@ class ProductInteractionDetail(BaseModel):
     order_id: str = ""
     order_item_id: str = ""
     sku_id: str = ""
-    name: str = ""
-    qty: int | str | None = None
-    image_url: str = ""
+    product_name: str = ""
+    order_item_quantity: int | str | None = None
+    product_image: str = ""
 
 
 class TicketInteractionDetail(BaseModel):
@@ -60,12 +60,11 @@ class TicketInteractionDetail(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    title: str
+    ticket_title: str
     ticket_id: str = ""
     ticket_type: str = ""
-    biz_id: str = ""
-    status: str = ""
-    status_label: str = ""
+    ticket_status: str = ""
+    ticket_status_label: str = ""
 
 
 InteractionEntity = Annotated[
@@ -90,7 +89,7 @@ def _build_order_item_key(detail: OrderInteractionDetail) -> str:
 
 def _build_order_item_label(detail: OrderInteractionDetail, *, interaction_type: InteractionType) -> str:
     order_id = str(detail.order_id or "").strip()
-    status_label = str(detail.status_label or "").strip()
+    status_label = str(detail.order_status_label or "").strip()
     base = f"订单 {order_id}".strip()
     if status_label:
         base = f"{base}（{status_label}）"
@@ -107,8 +106,8 @@ def _build_product_item_key(detail: ProductInteractionDetail) -> str:
 
 
 def _build_product_item_label(detail: ProductInteractionDetail, *, interaction_type: InteractionType) -> str:
-    name = str(detail.name or "").strip() or str(detail.product_id or "").strip()
-    base = f"{name}{_quantity_text(detail.qty)}".strip()
+    product_name = str(detail.product_name or "").strip() or str(detail.product_id or "").strip()
+    base = f"{product_name}{_quantity_text(detail.order_item_quantity)}".strip()
     if interaction_type == "confirm_product":
         return f"确认商品：{base}"
     return base
@@ -118,12 +117,12 @@ def _build_ticket_item_key(detail: TicketInteractionDetail) -> str:
     ticket_id = str(detail.ticket_id or "").strip()
     if ticket_id:
         return ticket_id
-    return str(detail.biz_id or "").strip() or str(detail.title or "").strip()
+    return str(detail.ticket_title or "").strip()
 
 
 def _build_ticket_item_label(detail: TicketInteractionDetail, *, interaction_type: InteractionType) -> str:
-    title = str(detail.title or "").strip() or str(detail.ticket_id or "").strip() or str(detail.biz_id or "").strip()
-    status_label = str(detail.status_label or "").strip()
+    title = str(detail.ticket_title or "").strip() or str(detail.ticket_id or "").strip()
+    status_label = str(detail.ticket_status_label or "").strip()
     base = title
     if status_label:
         base = f"{base}｜{status_label}"

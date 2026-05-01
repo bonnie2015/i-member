@@ -16,8 +16,9 @@ logger = get_logger("recognize_intent")
 
 
 class RouterOutput(BaseModel):
-    intent: Literal["ticket", "qa", "recommend"]
+    intent: Literal["ticket", "qa", "recommend", "direct_reply"]
     reason: str
+    reply: str = ""
 
 
 def _build_router_messages_payload(messages: Sequence[BaseMessage]) -> str:
