@@ -1,78 +1,93 @@
+from datetime import datetime, timezone
+from typing import Any, Dict, List
+
+from langchain_core.messages import BaseMessage, HumanMessage
+
+from app.agents.base import AgentInput, AgentStatus
+from app.agents.router_agent import router_agent
 from app.config.logging import get_logger
-from app.workflow.nodes.router.recognize_intent import recognize_router
-from app.workflow.state import AgentState
-from langchain_core.messages import AIMessage
+from app.workflow.nodes.post_process.post_process import spawn_post_process_tasks
+from app.workflow.state import AgentState, extract_last_service_round, get_service_clear_state
 
 logger = get_logger("router")
-_ALLOWED_INTENTS = {"ticket", "qa", "recommend", "direct_reply"}
-_DEFAULT_DIRECT_REPLY = "收到，有需要随时告诉我。"
-
-
-def _build_direct_reply(user_input: str) -> str:
-    text = str(user_input or "").strip()
-    if not text:
-        return _DEFAULT_DIRECT_REPLY
-    if any(item in text for item in ["谢谢", "感谢", "辛苦"]):
-        return "不客气，有需要随时告诉我。"
-    if any(item in text for item in ["不用", "不需要", "先这样", "再说", "算了"]):
-        return "好的，有需要再告诉我。"
-    if any(item in text for item in ["好的", "好", "嗯", "嗯嗯", "收到", "ok", "OK"]):
-        return "好的。"
-    if any(item in text for item in ["哈哈", "嘿嘿", "hh", "HH"]):
-        return "哈哈，好的。"
-    return _DEFAULT_DIRECT_REPLY
+_ALLOWED_INTENTS = {"ticket", "qa", "recommend"}
 
 
 def router_condition(state: AgentState) -> str:
     intent = str(state.get("intent") or "").strip()
-    if intent == "direct_reply":
-        return "direct_reply"
     return intent if intent in _ALLOWED_INTENTS else "qa"
+
+
+def _build_transition_from_qa(
+    new_intent: str,
+    reason: str,
+    user_input: str,
+    state: AgentState,
+) -> Dict[str, Any]:
+    """从 QA 转出到其他服务：善后 + 保留最后一轮对话 + 设置新路由。"""
+    spawn_post_process_tasks(dict(state))
+
+    all_messages = list(state.get("messages") or [])
+    last_round = extract_last_service_round(all_messages)
+
+    preserved: List[BaseMessage] = [*last_round, HumanMessage(content=user_input)]
+
+    updates = get_service_clear_state()
+    updates["messages"] = preserved
+    updates["intent"] = new_intent
+    updates["reason"] = reason
+    updates["current_subgraph"] = new_intent
+    updates["started_at"] = datetime.now(timezone.utc).isoformat()
+    return updates
 
 
 async def router_node(state: AgentState):
     messages = state.get("messages") or []
     thread_id = str(state.get("thread_id") or "").strip() or "unknown"
+    previous_subgraph = state.get("current_subgraph")
+
     if not messages:
         logger.warning("[router] thread_id=%s messages empty, defaulting to QA", thread_id)
         return {
             "intent": "qa",
+            "current_subgraph": "qa",
             "reason": "消息为空，默认进入问答模块",
         }
 
     user_input = str(getattr(messages[-1], "content", "") or "").strip()
-    try:
-        result = await recognize_router(
-            messages=messages,
-            thread_id=thread_id,
+
+    result = await router_agent.run(AgentInput(
+        user_query=user_input,
+        thread_id=thread_id,
+        user_id=state.get("user_id"),
+        messages=messages,
+    ))
+
+    routed_intent = result.data.get("intent", "qa") if result.status == AgentStatus.SUCCESS else "qa"
+    if routed_intent not in _ALLOWED_INTENTS:
+        routed_intent = "qa"
+
+    reason = str(result.data.get("reason", "") or "")
+
+    # QA 转出到 ticket/recommend：善后 + 清状态 + 进入新子图
+    if previous_subgraph == "qa" and routed_intent != "qa":
+        logger.info(
+            "[router] thread_id=%s qa→%s transition",
+            thread_id,
+            routed_intent,
         )
-        routed_intent = str(result.intent or "").strip()
-        if routed_intent not in _ALLOWED_INTENTS:
-            routed_intent = "qa"
+        return _build_transition_from_qa(
+            new_intent=routed_intent,
+            reason=reason,
+            user_input=user_input,
+            state=state,
+        )
 
-        if routed_intent == "direct_reply":
-            reply = str(result.reply or "").strip() or _build_direct_reply(user_input)
-            return {
-                "intent": routed_intent,
-                "current_subgraph": None,
-                "entry_message": user_input,
-                "reason": result.reason,
-                "final_reply": reply,
-                "final_status": "success",
-                "final_reason": "router_direct_reply",
-                "messages": [AIMessage(content=reply)],
-            }
-
-        return {
-            "intent": routed_intent,
-            "current_subgraph": routed_intent,
-            "entry_message": user_input,
-            "reason": result.reason,
-        }
-    except Exception as e:
-        logger.warning("[router] thread_id=%s error: %s", thread_id, e)
-        return {
-            "intent": "qa",
-            "current_subgraph": "qa",
-            "reason": f"路由错误: {str(e)}",
-        }
+    result: Dict[str, Any] = {
+        "intent": routed_intent,
+        "current_subgraph": routed_intent,
+        "reason": reason,
+    }
+    if routed_intent != "qa":
+        result["started_at"] = datetime.now(timezone.utc).isoformat()
+    return result

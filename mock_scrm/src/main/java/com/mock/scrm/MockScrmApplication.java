@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -38,10 +39,9 @@ public class MockScrmApplication {
     private static final Path STATE_FILE = Paths.get("/app/data/state.json");
     private static final Path DEFAULT_SEED_DIR = Paths.get("/app/seed");
     private static final Path LOCAL_SEED_DIR = Paths.get("data/seed");
-    private static final String USER_ID = "api_ticket_probe";
+    private static final String USER_ID = "bonnie20260412";
     private static final List<String> PROFILE_FIELDS = Arrays.asList(
-            "basic_info", "value_segment", "preferences", "behavior_summary", "social"
-    );
+            "basic_info", "value_segment", "preferences", "behavior_summary", "social");
 
     private Map<String, Object> state;
 
@@ -54,7 +54,8 @@ public class MockScrmApplication {
     @PostConstruct
     public synchronized void load() throws IOException {
         if (Files.exists(STATE_FILE)) {
-            state = JSON.readValue(STATE_FILE.toFile(), new TypeReference<Map<String, Object>>() {});
+            state = JSON.readValue(STATE_FILE.toFile(), new TypeReference<Map<String, Object>>() {
+            });
         } else {
             state = seedState();
             save();
@@ -69,8 +70,7 @@ public class MockScrmApplication {
     @GetMapping("/api/scrm/user_profile")
     public ResponseEntity<Map<String, Object>> getUserProfile(
             @RequestParam(value = "user_id", required = false) String userId,
-            @RequestParam(value = "fields", required = false) String fields
-    ) {
+            @RequestParam(value = "fields", required = false) String fields) {
         String normalizedUserId = text(userId);
         if (normalizedUserId.isEmpty()) {
             return scrmError(HttpStatus.BAD_REQUEST, "Missing required parameter: user_id");
@@ -86,8 +86,7 @@ public class MockScrmApplication {
         return ResponseEntity.ok(scrmSuccess(map(
                 "user_id", profileRecord.get("user_id"),
                 "profile", filtered,
-                "last_update", profileRecord.get("last_update")
-        )));
+                "last_update", profileRecord.get("last_update"))));
     }
 
     @GetMapping("/order")
@@ -97,8 +96,7 @@ public class MockScrmApplication {
             @RequestParam(value = "start_time", required = false) String startTime,
             @RequestParam(value = "end_time", required = false) String endTime,
             @RequestParam(value = "page", defaultValue = "1") int page,
-            @RequestParam(value = "page_size", defaultValue = "20") int pageSize
-    ) {
+            @RequestParam(value = "page_size", defaultValue = "20") int pageSize) {
         String normalizedKeyword = text(keyword).toLowerCase();
         List<Map<String, Object>> filtered = new ArrayList<>();
         for (Map<String, Object> order : listAt(state, "orders")) {
@@ -140,8 +138,7 @@ public class MockScrmApplication {
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "page_size", defaultValue = "20") int pageSize,
             @RequestParam(value = "start_time", required = false) String startTime,
-            @RequestParam(value = "end_time", required = false) String endTime
-    ) {
+            @RequestParam(value = "end_time", required = false) String endTime) {
         Map<String, Object> score = mapAt(state, "score");
         List<Map<String, Object>> records = new ArrayList<>();
         for (Map<String, Object> record : listAt(score, "records")) {
@@ -166,14 +163,16 @@ public class MockScrmApplication {
             @RequestParam(value = "start_time", required = false) String startTime,
             @RequestParam(value = "end_time", required = false) String endTime,
             @RequestParam(value = "page", defaultValue = "1") int page,
-            @RequestParam(value = "page_size", defaultValue = "20") int pageSize
-    ) {
+            @RequestParam(value = "page_size", defaultValue = "20") int pageSize) {
         String normalizedKeyword = text(keyword).toLowerCase();
         List<Map<String, Object>> filtered = new ArrayList<>();
         for (Map<String, Object> ticket : listAt(state, "tickets")) {
-            if (!text(ticketType).isEmpty() && !text(ticket.get("ticket_type")).equals(ticketType)) continue;
-            if (!text(sourceChannel).isEmpty() && !text(ticket.get("source_channel")).equals(sourceChannel)) continue;
-            if (!text(status).isEmpty() && !text(ticket.get("status")).equals(status)) continue;
+            if (!text(ticketType).isEmpty() && !text(ticket.get("ticket_type")).equals(ticketType))
+                continue;
+            if (!text(sourceChannel).isEmpty() && !text(ticket.get("source_channel")).equals(sourceChannel))
+                continue;
+            if (!text(status).isEmpty() && !text(ticket.get("status")).equals(status))
+                continue;
             if (!normalizedKeyword.isEmpty()
                     && !text(ticket.get("ticket_id")).toLowerCase().contains(normalizedKeyword)
                     && !text(ticket.get("title")).toLowerCase().contains(normalizedKeyword)) {
@@ -208,7 +207,7 @@ public class MockScrmApplication {
             throw new MockHttpException(HttpStatus.BAD_REQUEST, "ticket_type, title, content are required");
         }
 
-        String now = OffsetDateTime.now().toString();
+        String now = OffsetDateTime.now(ZoneId.of("Asia/Shanghai")).toString();
         Map<String, Object> ticket = map(
                 "ticket_id", nextTicketId(),
                 "ticket_type", ticketType,
@@ -226,8 +225,7 @@ public class MockScrmApplication {
                 "latest_progress", "工单已创建，等待处理",
                 "expected_finish_time", "2026-05-05T18:00:00+08:00",
                 "created_at", now,
-                "timeline", list(map("time", now, "action", "工单创建", "operator", "mock_scrm"))
-        );
+                "timeline", list(map("time", now, "action", "工单创建", "operator", "mock_scrm")));
         listAt(state, "tickets").add(ticket);
         save();
         return ok(ticket);
@@ -258,7 +256,7 @@ public class MockScrmApplication {
     }
 
     private String nextTicketId() {
-        return "TK" + OffsetDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+        return "TK" + OffsetDateTime.now(ZoneId.of("Asia/Shanghai")).format(DateTimeFormatter.ofPattern("yyyyMMdd"))
                 + String.format("%04d", listAt(state, "tickets").size() + 1);
     }
 
@@ -270,30 +268,37 @@ public class MockScrmApplication {
                 "orders", readSeedList(seedDir.resolve("orders.json")),
                 "tickets", readSeedList(seedDir.resolve("tickets.json")),
                 "score", mapAt(loyalty, "score"),
-                "user_level", mapAt(loyalty, "user_level")
-        );
+                "user_level", mapAt(loyalty, "user_level"));
     }
 
     private static Path seedDir() {
         String configured = text(System.getenv("MOCK_SCRM_SEED_DIR"));
-        if (!configured.isEmpty()) return Paths.get(configured);
+        if (!configured.isEmpty())
+            return Paths.get(configured);
         return Files.exists(DEFAULT_SEED_DIR) ? DEFAULT_SEED_DIR : LOCAL_SEED_DIR;
     }
 
     private static Map<String, Object> readSeedObject(Path path) throws IOException {
-        return JSON.readValue(path.toFile(), new TypeReference<Map<String, Object>>() {});
+        return JSON.readValue(path.toFile(), new TypeReference<Map<String, Object>>() {
+        });
     }
 
     private static List<Map<String, Object>> readSeedList(Path path) throws IOException {
-        return JSON.readValue(path.toFile(), new TypeReference<List<Map<String, Object>>>() {});
+        return JSON.readValue(path.toFile(), new TypeReference<List<Map<String, Object>>>() {
+        });
     }
 
     private static Map<String, Object> orderSummary(Map<String, Object> order) {
-        return map("order_id", order.get("order_id"), "status", order.get("status"), "status_label", order.get("status_label"), "amount", order.get("amount"), "items_summary", order.get("items_summary"), "items", order.get("items"), "source_channel", order.get("source_channel"), "created_at", order.get("created_at"));
+        return map("order_id", order.get("order_id"), "status", order.get("status"), "status_label",
+                order.get("status_label"), "amount", order.get("amount"), "items_summary", order.get("items_summary"),
+                "items", order.get("items"), "source_channel", order.get("source_channel"), "created_at",
+                order.get("created_at"));
     }
 
     private static Map<String, Object> ticketSummary(Map<String, Object> ticket) {
-        return map("ticket_id", ticket.get("ticket_id"), "ticket_type", ticket.get("ticket_type"), "status", ticket.get("status"), "status_label", ticket.get("status_label"), "title", ticket.get("title"), "source_channel", ticket.get("source_channel"), "created_at", ticket.get("created_at"));
+        return map("ticket_id", ticket.get("ticket_id"), "ticket_type", ticket.get("ticket_type"), "status",
+                ticket.get("status"), "status_label", ticket.get("status_label"), "title", ticket.get("title"),
+                "source_channel", ticket.get("source_channel"), "created_at", ticket.get("created_at"));
     }
 
     @SuppressWarnings("unchecked")
@@ -310,29 +315,37 @@ public class MockScrmApplication {
 
     private static Map<String, Object> findById(List<Map<String, Object>> items, String field, String value) {
         for (Map<String, Object> item : items) {
-            if (text(item.get(field)).equals(value)) return item;
+            if (text(item.get(field)).equals(value))
+                return item;
         }
         return null;
     }
 
     private static Map<String, Object> filterProfile(Map<String, Object> profile, String fields) {
-        if (text(fields).isEmpty()) return profile;
+        if (text(fields).isEmpty())
+            return profile;
         Map<String, Object> filtered = new LinkedHashMap<>();
         for (String part : fields.split(",")) {
             String field = part.trim();
-            if (!PROFILE_FIELDS.contains(field)) return null;
-            if (profile.containsKey(field)) filtered.put(field, profile.get(field));
+            if (!PROFILE_FIELDS.contains(field))
+                return null;
+            if (profile.containsKey(field))
+                filtered.put(field, profile.get(field));
         }
         return filtered;
     }
 
     private static boolean withinRange(String value, String start, String end) {
-        if (text(start).isEmpty() && text(end).isEmpty()) return true;
-        if (text(value).isEmpty()) return false;
+        if (text(start).isEmpty() && text(end).isEmpty())
+            return true;
+        if (text(value).isEmpty())
+            return false;
         try {
             OffsetDateTime time = OffsetDateTime.parse(value);
-            if (!text(start).isEmpty() && time.isBefore(OffsetDateTime.parse(start))) return false;
-            if (!text(end).isEmpty() && time.isAfter(OffsetDateTime.parse(end))) return false;
+            if (!text(start).isEmpty() && time.isBefore(OffsetDateTime.parse(start)))
+                return false;
+            if (!text(end).isEmpty() && time.isAfter(OffsetDateTime.parse(end)))
+                return false;
             return true;
         } catch (DateTimeParseException e) {
             return false;
@@ -344,7 +357,8 @@ public class MockScrmApplication {
         int safePageSize = Math.max(Math.min(pageSize, 100), 1);
         int start = Math.min((safePage - 1) * safePageSize, items.size());
         int end = Math.min(start + safePageSize, items.size());
-        return map("total", items.size(), "page", safePage, "page_size", safePageSize, "has_more", end < items.size(), "items", new ArrayList<>(items.subList(start, end)));
+        return map("total", items.size(), "page", safePage, "page_size", safePageSize, "has_more", end < items.size(),
+                "items", new ArrayList<>(items.subList(start, end)));
     }
 
     private static ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {
@@ -381,6 +395,7 @@ public class MockScrmApplication {
 
     private static class MockHttpException extends RuntimeException {
         private final HttpStatus status;
+
         MockHttpException(HttpStatus status, String message) {
             super(message);
             this.status = status;

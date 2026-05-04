@@ -16,6 +16,22 @@ services:
     networks:
       - imember-network
 
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: i-member-qdrant-1
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - imember-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -c '</dev/tcp/localhost/6333'" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   backend:
     build:
       context: ./backend
@@ -26,20 +42,27 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     environment:
+      - TZ=Asia/Shanghai
       - REDIS_URL=${REDIS_URL}
       - SCRM_URL=${SCRM_URL}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
+      - LLAMA_CLOUD_API_KEY=${LLAMA_CLOUD_API_KEY:-}
       - DEBUG=${DEBUG:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./backend/app:/app/app
       - ./backend/logs:/app/logs
+      - ./data:/app/data:ro
+      - ./data/rag_docs:/app/data/rag_docs
     depends_on:
       redis:
         condition: service_healthy
       scrm:
         condition: service_started
+      qdrant:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - imember-network
@@ -54,6 +77,7 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     environment:
+      - TZ=Asia/Shanghai
       - REDIS_URL=${REDIS_URL}
       - SCRM_URL=${SCRM_URL}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
@@ -104,6 +128,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "${SCRM_PORT:-3658}:3658"
+    environment:
+      - TZ=Asia/Shanghai
     volumes:
       - scrm_data:/app/data
     networks:
@@ -118,7 +144,7 @@ services:
 volumes:
   redis_data:
   scrm_data:
-
+  qdrant_data:
 
 networks:
   imember-network:

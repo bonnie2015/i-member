@@ -1,208 +1,72 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Any, Dict, List
 
-from langchain_core.messages import SystemMessage
-from langchain_core.tools import BaseTool
-from pydantic import BaseModel, Field, field_validator, model_validator
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
-from app.agents.llm.llm_factory import get_remote_llm
-from app.agents.llm.runtime import invoke_with_usage_logging
-from app.agents.prompts.prompt_builder import (
-    PromptCapabilityContext,
-    TicketPlanRuntimePayload,
-    build_ticket_plan_system_prompt,
-)
-from app.agents.skills.registry import load_skill_context, load_skill_metadata
-from app.agents.tools import get_scrm_tools, onitsuka_get_product_detail
+from app.agents.ticket.plan_agent import ticket_plan_agent
+from app.agents.base import AgentInput, AgentStatus
 from app.config.logging import get_logger
-from app.workflow.state import AgentState, TicketNextNode
+from app.llm.llm_factory import get_llm
+from app.llm.runtime import invoke_with_usage_logging
+from app.prompts.prompt_builder import FinalReplyContext, build_ticket_final_reply_prompt
+from app.workflow.state import AgentState
 
-logger = get_logger("ticket_planner")
-
-MAX_PLAN_STEPS = 5
-_PLAN_TIMEOUT_SECONDS = 60
-
-
-class TicketPlanStep(BaseModel):
-    goal: str
-    completion_signal: str = ""
-    target_slots: List[str] = Field(default_factory=list)
-    available_tools: List[str] = Field(default_factory=list)
-    step_status: str = "pending"
-    failed_reason: str = ""
-    failed_type: str = ""
-    try_process: Any = Field(default_factory=list)
-
-    @field_validator("target_slots", "available_tools", mode="before")
-    @classmethod
-    def normalize_string_list(cls, value: Any) -> List[str]:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            raw_items = [value]
-        elif isinstance(value, list):
-            raw_items = value
-        else:
-            return []
-
-        normalized: List[str] = []
-        for item in raw_items:
-            key = str(item or "").strip()
-            if key and key not in normalized:
-                normalized.append(key)
-        return normalized
+logger = get_logger("ticket_plan_node")
 
 
-class TicketPlan(BaseModel):
-    reason: str = ""
-    expected_slots: List[str] = Field(default_factory=list)
-    steps: List[TicketPlanStep] = Field(default_factory=list)
-
-    @field_validator("expected_slots", mode="before")
-    @classmethod
-    def normalize_expected_slots(cls, value: Any) -> List[str]:
-        return TicketPlanStep.normalize_string_list(value)
-
-    @model_validator(mode="after")
-    def validate_plan(self) -> "TicketPlan":
-        self.reason = str(self.reason or "").strip()
-        if len(self.steps) > MAX_PLAN_STEPS:
-            raise ValueError(f"ticket plan must contain at most {MAX_PLAN_STEPS} steps")
-        if not self.steps and not self.reason:
-            raise ValueError("ticket plan without steps must provide reason")
-        return self
+def _last_user_message_text(state: AgentState) -> str:
+    messages = list(state.get("messages") or [])
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            return str(getattr(message, "content", "") or "").strip()
+    return ""
 
 
-def _extract_text_content(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: List[str] = []
-        for item in content:
-            if isinstance(item, dict) and item.get("type") == "text":
-                parts.append(str(item.get("text") or ""))
-            else:
-                parts.append(str(item))
-        return "\n".join(parts)
-    return str(content or "")
-
-
-def _extract_json_object(text: str) -> str:
-    fenced = re.search(r"```json\s*(\{.*?\})\s*```", text, flags=re.S | re.I)
-    if fenced:
-        return fenced.group(1)
-    start = text.find("{")
-    end = text.rfind("}")
-    if start >= 0 and end > start:
-        return text[start : end + 1]
-    return text
-
-
-def _load_selected_skill_content(service_key: str) -> str:
-    return load_skill_context(
-        load_skill_metadata(service_key, group="ticket").get("location"),
-        group="ticket",
-    )
-
-
-def _tool_registry() -> Dict[str, BaseTool]:
-    return {str(tool.name): tool for tool in [*get_scrm_tools(), onitsuka_get_product_detail]}
-
-
-def _resolve_planner_tools(tool_names: List[str]) -> List[BaseTool]:
-    registry = _tool_registry()
-    resolved: List[BaseTool] = []
-    for item in tool_names:
-        tool_name = str(item or "").strip()
-        tool = registry.get(tool_name)
-        if tool is not None:
-            resolved.append(tool)
-    return resolved
-
-
-def _filter_plan_tools(plan: TicketPlan, bound_tools: List[BaseTool]) -> TicketPlan:
-    allowed_tool_names = {str(tool.name) for tool in bound_tools}
-    if not allowed_tool_names:
-        return plan
-    for step in plan.steps:
-        step.available_tools = [
-            tool_name for tool_name in step.available_tools if tool_name in allowed_tool_names
-        ]
-    return plan
-
-
-def _plan_runtime_payload(
+async def _generate_final_reply(
     state: AgentState,
-    *,
-    current_step_index: int,
-) -> TicketPlanRuntimePayload:
-    return TicketPlanRuntimePayload(
-        current_goal=str(state.get("goal") or "").strip(),
-        current_step_index=current_step_index,
-        slots=dict(state.get("slots") or {}),
-    )
+    final_status: str,
+    final_reason: str,
+) -> str:
+    try:
+        prompt = await build_ticket_final_reply_prompt(
+            context=FinalReplyContext(
+                service_key=str(state.get("service_key") or ""),
+                goal=str(state.get("goal") or ""),
+                final_status=final_status,
+                final_reason=final_reason,
+                slots=dict(state.get("slots") or {}),
+            ),
+        )
+        response, _ = await invoke_with_usage_logging(
+            llm=get_llm("ticket"),
+            messages=[HumanMessage(content=prompt)],
+            node="ticket_final_reply",
+            thread_id=state.get("thread_id"),
+            user_id=state.get("user_id"),
+            provider="deepseek",
+            timeout_seconds=30,
+        )
+        return str(getattr(response, "content", "") or "").strip() or "当前工单服务已结束。"
+    except Exception as exc:
+        logger.warning("[plan_node] final_reply_gen_failed: %s", exc)
+        return "当前工单服务已结束。"
 
 
-def _merge_plan_steps(
-    previous_steps: List[Dict[str, Any]],
-    current_step_index: int,
-    new_steps: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    normalized_new_steps = []
+def _build_steps(previous_steps: List[Dict], current_index: int, new_steps: List[Dict]) -> List[Dict]:
+    result = []
     for step in new_steps:
         if not isinstance(step, dict):
             continue
-        normalized_step = dict(step)
-        normalized_step["step_status"] = "pending"
-        normalized_step["failed_reason"] = ""
-        normalized_step["failed_type"] = ""
-        normalized_step["try_process"] = []
-        normalized_new_steps.append(normalized_step)
-    preserved_prefix = [
-        dict(step)
-        for step in previous_steps[:current_step_index]
-        if isinstance(step, dict)
-    ]
-    return [*preserved_prefix, *normalized_new_steps]
-
-
-async def _invoke_llm_for_plan(
-    state: AgentState,
-    *,
-    current_step_index: int,
-) -> TicketPlan:
-    service_key = str(state.get("service_key") or "").strip()
-    skill_meta = load_skill_metadata(service_key, group="ticket")
-    selected_skill_content = _load_selected_skill_content(service_key)
-    available_tools = [str(item).strip() for item in skill_meta.get("available_tools") or [] if str(item).strip()]
-    bound_tools = _resolve_planner_tools(available_tools)
-    prompt = await build_ticket_plan_system_prompt(
-        capability_context=PromptCapabilityContext(
-            selected_skill_content=selected_skill_content,
-        ),
-        runtime_context=_plan_runtime_payload(
-            state,
-            current_step_index=current_step_index,
-        ),
-    )
-    llm_messages = [SystemMessage(content=prompt)]
-    llm = get_remote_llm(role="ticket")
-    if bound_tools:
-        llm = llm.bind_tools(bound_tools)
-    response, _ = await invoke_with_usage_logging(
-        llm=llm,
-        messages=llm_messages,
-        node="ticket_plan",
-        thread_id=state.get("thread_id"),
-        user_id=state.get("user_id"),
-        provider="deepseek",
-        timeout_seconds=_PLAN_TIMEOUT_SECONDS,
-    )
-    payload = json.loads(_extract_json_object(_extract_text_content(getattr(response, "content", ""))))
-    return _filter_plan_tools(TicketPlan.model_validate(payload), bound_tools)
+        s = dict(step)
+        s["step_status"] = "pending"
+        s["failed_reason"] = ""
+        s["failed_type"] = ""
+        s["try_process"] = []
+        result.append(s)
+    preserved = [dict(s) for s in previous_steps[:current_index] if isinstance(s, dict)]
+    return [*preserved, *result]
 
 
 async def plan_node(state: AgentState) -> Dict[str, Any]:
@@ -210,77 +74,87 @@ async def plan_node(state: AgentState) -> Dict[str, Any]:
     thread_id = str(state.get("thread_id") or "").strip() or "unknown"
 
     if not service_key:
-        logger.warning("[planner] thread_id=%s missing_service_key", thread_id)
+        logger.warning("[plan_node] thread_id=%s missing_service_key", thread_id)
         return {
-            "ticket_next_node": TicketNextNode.END,
             "final_status": "failed",
             "final_reason": "missing_service_key",
-            "planner_reason": "missing_service_key",
+            "current_subgraph": None,
         }
 
-    previous_steps = list(state.get("steps") or [])
+    existing_slots = dict(state.get("slots") or {})
     current_step_index = int(state.get("current_step_index") or 0)
+    previous_steps = list(state.get("steps") or [])
 
-    try:
-        plan = await _invoke_llm_for_plan(
-            state,
-            current_step_index=current_step_index,
-        )
-    except Exception as exc:
-        logger.error("[planner] thread_id=%s plan_generation_failed error=%s", thread_id, exc)
+    # 取当前步骤（如果已存在就是刚失败待重规划的步骤）
+    failed_step = None
+    if 0 <= current_step_index < len(previous_steps):
+        fs = dict(previous_steps[current_step_index])
+        if fs.get("step_status") in ("failed", "pending"):
+            failed_step = fs
+
+    logger.info("[plan_node] thread_id=%s service_key=%s step_index=%s replan=%s",
+                thread_id, service_key, current_step_index, state.get("replan_count", 0))
+
+    result = await ticket_plan_agent.run(AgentInput(
+        user_query=str(state.get("goal") or "").strip(),
+        thread_id=thread_id,
+        user_id=state.get("user_id"),
+        extra={
+            "service_key": service_key,
+            "goal": str(state.get("goal") or "").strip(),
+            "current_step_index": current_step_index,
+            "slots": existing_slots,
+            "failed_step": failed_step,
+        },
+    ))
+
+    if result.status != AgentStatus.SUCCESS:
+        logger.error("[plan_node] thread_id=%s agent_failed status=%s", thread_id, result.status)
+        final_reply = "当前服务暂时无法处理，请稍后再试。"
         return {
-            "ticket_next_node": TicketNextNode.END,
+            "final_reply": final_reply,
             "final_status": "failed",
-            "final_reason": "plan_generation_failed",
-            "planner_reason": "plan_generation_failed",
+            "final_reason": "plan_agent_failed",
+            "current_subgraph": None,
+            "planner_reason": "plan_agent_failed",
+            "messages": [*state["messages"], AIMessage(content=final_reply)],
         }
 
-    plan_data = plan.model_dump()
-    reason = str(plan_data.get("reason") or "").strip()
-    steps_count = len(list(plan_data.get("steps") or []))
-    remaining_step_count = max(MAX_PLAN_STEPS - current_step_index, 0)
+    data = result.data
+    steps = list(data.get("steps") or [])
+    reason = str(data.get("reason") or "").strip()
+    expected_slots = list(data.get("expected_slots") or [])
+    pre_filled_slots = dict(data.get("slots") or {})
 
     logger.info(
-        "[planner] thread_id=%s current_step_index=%d steps_count=%d remaining_step_count=%d reason=%s",
-        thread_id,
-        current_step_index,
-        steps_count,
-        remaining_step_count,
-        reason or "none",
+        "[plan_node] thread_id=%s steps=%s expected_slots=%s pre_filled=%s reason=%s",
+        thread_id, len(steps), len(expected_slots), len(pre_filled_slots), reason or "none",
     )
 
-    if not steps_count:
+    if not steps:
+        final_reason = reason or "plan_impossible"
+        final_reply = await _generate_final_reply(state, "failed", final_reason)
         return {
-            "ticket_next_node": TicketNextNode.END,
+            "final_reply": final_reply,
             "final_status": "failed",
-            "final_reason": reason or "plan_impossible",
-            "planner_reason": reason or "plan_impossible",
+            "final_reason": final_reason,
+            "current_subgraph": None,
+            "planner_reason": final_reason,
+            "messages": [*state["messages"], AIMessage(content=final_reply)],
         }
 
-    if steps_count > remaining_step_count:
-        logger.warning(
-            "[planner] thread_id=%s plan_steps_exceed_budget current_step_index=%d steps_count=%d remaining_step_count=%d",
-            thread_id,
-            current_step_index,
-            steps_count,
-            remaining_step_count,
-        )
-        return {
-            "ticket_next_node": TicketNextNode.END,
-            "final_status": "failed",
-            "final_reason": "plan_steps_exceed_budget",
-            "planner_reason": "plan_steps_exceed_budget",
-        }
+    merged_slots = {**existing_slots, **pre_filled_slots}
+    built_steps = _build_steps(
+        list(state.get("steps") or []),
+        current_step_index,
+        steps,
+    )
 
-    steps = _merge_plan_steps(previous_steps, current_step_index, list(plan_data.get("steps") or []))
     return {
-        "goal": str(state.get("goal") or "").strip(),
-        "steps": steps,
-        "expected_slots": list(plan_data.get("expected_slots") or []),
-        "ticket_next_node": TicketNextNode.EXECUTOR,
-        "final_status": None,
-        "final_reason": None,
-        "planner_reason": None,
-        "executor_retry_count": 0,
+        "steps": built_steps,
+        "expected_slots": expected_slots,
+        "slots": merged_slots,
         "current_step_index": current_step_index,
+        "planner_reason": None,
+        "goal": str(state.get("goal") or "").strip(),
     }
