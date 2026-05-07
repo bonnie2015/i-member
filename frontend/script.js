@@ -894,7 +894,7 @@ function appendInlineInteraction(targetRow, options, label = '') {
     }
 
     const cards = document.createElement('div');
-    cards.className = 'option-cards option-cards-inline';
+    cards.className = 'option-cards-inline';
 
     options.forEach(opt => {
         const labelText = typeof opt === 'string' ? opt : String(opt.label || opt.value || '');
