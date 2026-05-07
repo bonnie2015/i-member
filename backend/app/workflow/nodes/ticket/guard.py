@@ -1,154 +1,99 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
-from langgraph.types import interrupt
-from pydantic import BaseModel
+from langchain_core.messages import AIMessage, HumanMessage
 
-from app.agents.llm.llm_factory import get_remote_llm
-from app.agents.llm.runtime import invoke_with_usage_logging
-from app.agents.prompts.prompt_builder import (
-    PromptCapabilityContext,
-    build_ticket_guard_system_prompt,
-)
-from app.agents.skills.registry import (
-    load_skill_context,
-    load_skill_metadata,
-)
+from app.agents.ticket.guard_agent import ticket_guard_agent
+from app.agents.base import AgentInput, AgentStatus
 from app.config.logging import get_logger
 from app.workflow.state import AgentState
 
-logger = get_logger("ticket_guard")
-
-_REMOTE_GUARD_TIMEOUT_SECONDS = 45
-_RECENT_DIALOG_MESSAGE_LIMIT = 4
+logger = get_logger("ticket_guard_node")
 
 
-class GuardOutput(BaseModel):
-    decision: Literal["select_service", "clarify", "end_service"]
-    service_key: Optional[str] = None
-    goal: Optional[str] = None
-    reason: str
-    reply: Optional[str] = None
-
-
-def _recent_dialog_messages(messages: List[BaseMessage]) -> List[BaseMessage]:
-    dialog_messages = [
-        message
-        for message in messages
-        if isinstance(message, (HumanMessage, AIMessage))
-        and str(getattr(message, "content", "") or "").strip()
-    ]
-    return dialog_messages[-_RECENT_DIALOG_MESSAGE_LIMIT:]
-
-
-async def _recognize_service_once(
-    state: AgentState,
-    *,
-    messages: List[BaseMessage],
-) -> GuardOutput:
-    prompt = await build_ticket_guard_system_prompt(
-        capability_context=PromptCapabilityContext(
-            ticket_skills_snapshot=load_skill_context(group="ticket"),
-        ),
-    )
-    llm = get_remote_llm(role="ticket").with_structured_output(GuardOutput)
-    llm_messages = [
-        SystemMessage(content=prompt),
-        *_recent_dialog_messages(messages),
-    ]
-    response, _ = await invoke_with_usage_logging(
-        llm=llm,
-        messages=llm_messages,
-        node="ticket_guard",
-        thread_id=state.get("thread_id"),
-        user_id=state.get("user_id"),
-        provider="deepseek",
-        timeout_seconds=_REMOTE_GUARD_TIMEOUT_SECONDS,
-    )
-    return response
-
-
-def _resolve_selected_service(response: GuardOutput) -> Dict[str, Any]:
-    service_key = str(response.service_key or "").strip() or None
-    selected_skill_meta: Dict[str, Any] = load_skill_metadata(service_key, group="ticket") if service_key else {}
-    if not service_key or not selected_skill_meta:
-        raise ValueError(f"guard returned unresolved service selection: service_key={service_key}")
-
-    return {
-        "service_key": service_key,
-        "goal": str(response.goal or "").strip(),
-    }
+def _last_user_message_text(state: AgentState) -> str:
+    messages = list(state.get("messages") or [])
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            return str(getattr(message, "content", "") or "").strip()
+    return ""
 
 
 async def guard_node(state: AgentState) -> Dict[str, Any]:
-    working_messages = list(state.get("messages") or [])
+    messages = list(state.get("messages") or [])
     thread_id = str(state.get("thread_id") or "").strip() or "unknown"
+    user_query = _last_user_message_text(state)
 
-    while True:
-        try:
-            response = await _recognize_service_once(state, messages=working_messages)
-        except Exception as exc:
-            logger.error("[guard] thread_id=%s guard_unavailable error=%s", thread_id, exc)
-            final_reply = "当前服务暂时较忙，请稍等片刻后再试；如果方便，也可以稍后重新发送您的问题。"
-            return {
-                "service_key": None,
-                "final_status": "failed",
-                "final_reason": "guard_unavailable",
-                "final_reply": final_reply,
-                "current_subgraph": None,
-                "messages": [AIMessage(content=final_reply)],
-            }
+    result = await ticket_guard_agent.run(AgentInput(
+        user_query=user_query,
+        thread_id=thread_id,
+        user_id=state.get("user_id"),
+        messages=messages,
+    ))
 
-        if response.decision == "clarify":
-            reply = str(response.reply or "").strip() or "请补充更具体的服务信息，方便我继续帮您处理。"
-            logger.info("[guard] thread_id=%s decision=clarify", thread_id)
-            resumed_user_message = str(interrupt({"reply": reply, "interaction": None}) or "").strip()
-            working_messages = [
-                *working_messages,
-                AIMessage(content=reply),
-                HumanMessage(content=resumed_user_message),
-            ]
-            continue
-
-        if response.decision == "end_service":
-            final_reply = (
-                str(response.reply or "").strip()
-                or "当前工单服务已结束。如果您有其他新需求，可以在下一轮对话中重新告诉我，我会继续为您处理。"
-            )
-            final_reason = str(response.reason or "").strip() or "ticket_service_ended"
-            final_status = "cancelled"
-            logger.info(
-                "[guard] thread_id=%s decision=end final_status=%s reason=%s",
-                thread_id,
-                final_status,
-                final_reason,
-            )
-            return {
-                "service_key": None,
-                "final_status": final_status,
-                "final_reason": final_reason,
-                "final_reply": final_reply,
-                "current_subgraph": None,
-                "messages": [AIMessage(content=final_reply)],
-            }
-
-        if response.decision != "select_service":
-            logger.error(
-                "[guard] thread_id=%s invalid_decision decision=%s",
-                thread_id,
-                response.decision,
-            )
-            raise ValueError(f"unexpected guard decision: {response.decision}")
-
-        selected = _resolve_selected_service(response)
-        logger.info(
-            "[guard] thread_id=%s decision=select service_key=%s",
-            thread_id,
-            selected["service_key"],
-        )
+    if result.status != AgentStatus.SUCCESS:
+        logger.error("[guard_node] thread_id=%s agent_failed status=%s", thread_id, result.status)
+        fallback_reply = result.reply or "当前服务暂时较忙，请稍等片刻后再试。"
         return {
-            "service_key": selected["service_key"],
-            "goal": selected["goal"],
+            "guard_decision": "end_service",
+            "final_reply": fallback_reply,
+            "final_status": "failed",
+            "final_reason": "guard_unavailable",
+            "current_subgraph": None,
+            "service_key": None,
+            "goal": None,
+            "messages": [*state["messages"], AIMessage(content=fallback_reply)],
         }
+
+    data = result.data
+    decision = str(data.get("decision") or "").strip()
+
+    if decision == "clarify":
+        reply = str(data.get("reply") or result.reply or "请补充更具体的服务信息。").strip()
+        logger.info("[guard_node] thread_id=%s decision=clarify", thread_id)
+        return {
+            "guard_decision": "clarify",
+            "final_reply": reply,
+            "current_subgraph": "ticket",
+            "service_key": None,
+            "goal": None,
+            "messages": [*state["messages"], AIMessage(content=reply)],
+        }
+
+    if decision == "end_service":
+        reply = str(data.get("reply") or result.reply or "当前工单服务已结束。").strip()
+        final_reason = str(data.get("reason") or "ticket_service_ended").strip()
+        logger.info("[guard_node] thread_id=%s decision=end reason=%s", thread_id, final_reason)
+        return {
+            "guard_decision": "end_service",
+            "final_reply": reply,
+            "final_status": "cancelled",
+            "final_reason": final_reason,
+            "current_subgraph": None,
+            "service_key": None,
+            "goal": None,
+            "messages": [*state["messages"], AIMessage(content=reply)],
+        }
+
+    if decision != "select_service":
+        logger.error("[guard_node] thread_id=%s invalid_decision=%s", thread_id, decision)
+        return {
+            "guard_decision": "end_service",
+            "final_reply": "当前服务暂时较忙，请稍等片刻后再试。",
+            "final_status": "failed",
+            "final_reason": f"invalid_guard_decision:{decision}",
+            "current_subgraph": None,
+            "service_key": None,
+            "goal": None,
+            "messages": [*state["messages"], AIMessage(content="当前服务暂时较忙，请稍等片刻后再试。")],
+        }
+
+    service_key = str(data.get("service_key") or "").strip()
+    goal = str(data.get("goal") or "").strip()
+    logger.info("[guard_node] thread_id=%s decision=select service_key=%s", thread_id, service_key)
+    return {
+        "guard_decision": "select_service",
+        "service_key": service_key,
+        "goal": goal,
+    }

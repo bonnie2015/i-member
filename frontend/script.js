@@ -534,12 +534,14 @@ async function resetMockData() {
 }
 
 function renderMockData(state, stateFile) {
-    const orders = Array.isArray(state.orders) ? state.orders : [];
+    const orders = Array.isArray(state.orders)
+        ? state.orders.filter(order => textOrEmpty(order.user_id) === MOCK_USER_ID)
+        : [];
     const tickets = Array.isArray(state.tickets) ? state.tickets : [];
     mockTickets = tickets;
-    const profile = extractFirstProfile(state.user_profiles);
-    const score = isObj(state.score) ? state.score : {};
-    const level = isObj(state.user_level) ? state.user_level : {};
+    const profile = extractProfile(state.user_profiles, MOCK_USER_ID);
+    const score = isObj(state.score) && textOrEmpty(state.score.user_id) === MOCK_USER_ID ? state.score : {};
+    const level = isObj(state.user_level) && textOrEmpty(state.user_level.user_id) === MOCK_USER_ID ? state.user_level : {};
 
     $mockOrderCount.textContent = `${orders.length} 条`;
     $mockTicketCount.textContent = `${tickets.length} 条`;
@@ -736,10 +738,10 @@ function renderMockUser(profile, score, level) {
     `;
 }
 
-function extractFirstProfile(userProfiles) {
+function extractProfile(userProfiles, userId) {
     if (!isObj(userProfiles)) return {};
-    const first = Object.values(userProfiles)[0];
-    return first && isObj(first.profile) ? first.profile : {};
+    const entry = userProfiles[userId];
+    return entry && isObj(entry.profile) ? entry.profile : {};
 }
 
 function arrayText(value) {
@@ -946,7 +948,7 @@ function getInteractionDetailKind(interactionType, detail) {
 
 function renderOrderInteractionCard(option, detail, fallbackLabel) {
     const title = escHtml(detail.order_id ? `订单 ${detail.order_id}` : String(fallbackLabel || option.label || ''));
-    const status = escHtml(pickText(detail.status_label));
+    const status = escHtml(pickText(detail.order_status_label));
     const channel = escHtml(pickText(detail.source_channel));
     const previews = Array.isArray(detail.items_preview) ? detail.items_preview.slice(0, 3) : [];
     const previewHtml = previews.length > 0
@@ -973,9 +975,9 @@ function renderOrderInteractionCard(option, detail, fallbackLabel) {
 
 function renderOrderPreviewItem(item) {
     const data = isObj(item) ? item : {};
-    const image = escAttr(pickText(data.image_url));
-    const name = escHtml(pickText(data.name) || '商品');
-    const qty = textOrEmpty(data.qty) ? `×${escHtml(textOrEmpty(data.qty))}` : '';
+    const image = escAttr(pickText(data.product_image));
+    const name = escHtml(pickText(data.product_name) || '商品');
+    const qty = textOrEmpty(data.order_item_quantity) ? `×${escHtml(textOrEmpty(data.order_item_quantity))}` : '';
     return `
         <div class="interaction-preview-item">
             <div class="interaction-preview-thumb">
@@ -990,9 +992,9 @@ function renderOrderPreviewItem(item) {
 }
 
 function renderProductInteractionCard(option, detail, fallbackLabel) {
-    const image = escAttr(pickText(detail.image_url));
-    const title = escHtml(pickText(detail.name, fallbackLabel, option.label, detail.product_id));
-    const qty = textOrEmpty(detail.qty);
+    const image = escAttr(pickText(detail.product_image));
+    const title = escHtml(pickText(detail.product_name, fallbackLabel, option.label, detail.product_id));
+    const qty = textOrEmpty(detail.order_item_quantity);
     const orderId = escHtml(pickText(detail.order_id));
     const productId = escHtml(pickText(detail.product_id));
     return `
@@ -1131,10 +1133,23 @@ function newChat() {
 
 // ── Format bot text ───────────────────────────────────────────
 function formatBotText(text) {
+    if (typeof marked !== 'undefined' && marked.parse) {
+        const html = marked.parse(text, { breaks: true, gfm: true });
+        return sanitizeMarkdownHtml(html);
+    }
+    // fallback when marked CDN is unavailable
     const escaped = escHtml(text);
     return escaped
         .replace(/\n/g, '<br>')
         .replace(/(\d+)\.\s+([^<]+)/g, '<span class="numbered-item">$1. $2</span>');
+}
+
+function sanitizeMarkdownHtml(html) {
+    return html
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+        .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+        .replace(/\son\w+\s*=\s*'[^']*'/gi, '');
 }
 
 function escHtml(str) {

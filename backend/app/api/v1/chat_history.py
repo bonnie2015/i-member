@@ -11,6 +11,7 @@ from app.config.redis_keys import CHAT_LAST_THREAD_KEY, CHAT_MESSAGES_KEY
 logger = get_logger("chat_history")
 
 _CHAT_HISTORY_KEEP = 100
+_CHAT_TTL_SECONDS = 7 * 24 * 60 * 60
 
 
 def _last_thread_key(user_id: str) -> str:
@@ -78,7 +79,8 @@ async def append_chat_message(user_id: str, thread_id: str, message: Dict[str, A
         key = _messages_key(normalized_user_id, normalized_thread_id)
         await redis.rpush(key, json.dumps(payload, ensure_ascii=False))
         await redis.ltrim(key, -_CHAT_HISTORY_KEEP, -1)
-        await redis.set(_last_thread_key(normalized_user_id), normalized_thread_id)
+        await redis.expire(key, _CHAT_TTL_SECONDS)
+        await redis.set(_last_thread_key(normalized_user_id), normalized_thread_id, ex=_CHAT_TTL_SECONDS)
     except Exception as e:
         logger.warning("[chat_history] append message failed: %s", e)
 

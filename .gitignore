@@ -30,6 +30,7 @@ wheels/
 
 # 虚拟环境
 venv/
+.venv/
 ENV/
 env/
 
@@ -44,6 +45,9 @@ frontend/node_modules/
 # 日志
 *.log
 backend/logs/
+
+# 数据文件
+data/
 
 tests/
 test/

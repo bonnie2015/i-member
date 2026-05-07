@@ -1436,7 +1436,97 @@ a {
     color: var(--text);
 }
 
-.bubble br {
+/* ── Markdown content styles ────────────────────────────────── */
+.bot-text h1, .bot-text h2, .bot-text h3, .bot-text h4, .bot-text h5, .bot-text h6 {
+    margin: 10px 0 6px;
+    line-height: 1.3;
+    color: var(--brand-strong);
+}
+.bot-text h1 { font-size: 1.1rem; }
+.bot-text h2 { font-size: 1rem; }
+.bot-text h3 { font-size: 0.92rem; }
+.bot-text h4 { font-size: 0.84rem; }
+.bot-text h5, .bot-text h6 { font-size: 0.78rem; }
+
+.bot-text strong { font-weight: 600; color: var(--brand-strong); }
+.bot-text em { font-style: italic; }
+
+.bot-text code {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(22, 38, 61, 0.07);
+    font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+    font-size: 0.78em;
+}
+
+.bot-text pre {
+    margin: 8px 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(22, 38, 61, 0.06);
+    overflow-x: auto;
+    font-size: 0.78rem;
+    line-height: 1.5;
+}
+.bot-text pre code {
+    padding: 0;
+    background: none;
+    font-size: inherit;
+}
+
+.bot-text ul, .bot-text ol {
+    margin: 6px 0;
+    padding-left: 18px;
+}
+.bot-text li {
+    margin-bottom: 2px;
+    line-height: 1.5;
+}
+
+.bot-text table {
+    width: 100%;
+    margin: 8px 0;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+.bot-text th, .bot-text td {
+    padding: 6px 10px;
+    border: 1px solid rgba(22, 38, 61, 0.1);
+    text-align: left;
+    vertical-align: top;
+}
+.bot-text th {
+    background: rgba(22, 38, 61, 0.05);
+    font-weight: 600;
+    color: var(--brand-strong);
+}
+
+.bot-text blockquote {
+    margin: 6px 0;
+    padding: 4px 0 4px 10px;
+    border-left: 3px solid var(--accent-line);
+    color: var(--text-muted);
+}
+
+.bot-text a {
+    color: var(--brand);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.bot-text hr {
+    margin: 10px 0;
+    border: 0;
+    border-top: 1px solid rgba(22, 38, 61, 0.1);
+}
+
+.bot-text p {
+    margin: 4px 0;
+}
+.bot-text p:first-child { margin-top: 0; }
+.bot-text p:last-child { margin-bottom: 0; }
+
+.bot-text br {
     display: block;
     content: "";
     margin-top: 6px;
