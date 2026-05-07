@@ -224,6 +224,7 @@ def _normalize_interaction(
     result = build_interaction_payload(
         interaction_type=typed_interaction_type,
         entities=entities,
+        selectable=normalized_type.startswith("select"),
     ).model_dump()
     return result
 

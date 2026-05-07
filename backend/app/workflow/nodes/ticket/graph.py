@@ -4,10 +4,12 @@ import json
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, StateGraph
+from langgraph.types import interrupt as graph_interrupt
 
 from app.config.logging import get_logger
 from app.llm.llm_factory import get_llm
 from app.llm.runtime import invoke_with_usage_logging
+from app.models.interaction import TicketInteractionDetail, build_interaction_payload
 from app.prompts.prompt_builder import FinalReplyContext, build_ticket_final_reply_prompt
 from app.workflow.nodes.ticket.guard import guard_node
 from app.workflow.nodes.ticket.executor import executor_node
@@ -36,6 +38,41 @@ def _route_after_plan(state: AgentState) -> str:
     if steps:
         return "executor"
     return "end"
+
+
+def _route_after_executor(state: AgentState) -> str:
+    """如果 step 的 try_process 最后一条是未应答的 ask_user，进入 interrupt 节点。"""
+    steps = state.get("steps") or []
+    idx = int(state.get("current_step_index") or 0)
+    if steps and idx < len(steps):
+        step = steps[idx]
+        tp = list(step.get("try_process") or [])
+        if tp:
+            last = tp[-1]
+            if last.get("tool") == "ask_user" and "args" in last and "result" not in last:
+                return "executor_interrupt"
+    return "reflect"
+
+
+async def executor_interrupt_node(state: AgentState) -> dict:
+    """调 graph_interrupt，恢复后把用户回复写入 try_process（和普通 tool 一致）。"""
+    steps = list(state.get("steps") or [])
+    idx = int(state.get("current_step_index") or 0)
+    step = steps[idx]
+    tp = list(step.get("try_process") or [])
+    payload = tp[-1].get("interrupt_payload", {"reply": "请继续"})
+
+    logger.info("[executor_interrupt] thread_id=%s reply=%s",
+                state.get("thread_id"), str(payload.get("reply") or "")[:60])
+    answer = graph_interrupt(payload)
+    answer_text = str(answer or "").strip()
+    logger.info("[executor_interrupt] thread_id=%s resumed answer=%s",
+                state.get("thread_id"), answer_text[:60])
+
+    tp.append({"tool": "ask_user", "result": answer_text})
+    step["try_process"] = tp
+    steps[idx] = step
+    return {"steps": steps}
 
 
 def reflect_node(state: AgentState) -> dict:
@@ -72,17 +109,17 @@ def reflect_node(state: AgentState) -> dict:
     # pending / failed
     if replan_count < _MAX_REPLAN:
         logger.info("[ticket_reflect] → replan (plan), reason=%s", reason[:60])
-        return {"replan_count": replan_count + 1, "planner_reason": reason or "need_replan"}
+        return {"replan_count": replan_count + 1, "replan_reason": reason or "need_replan"}
 
     logger.info("[ticket_reflect] → finalize (replan limit)")
     return {"final_status": "failed", "final_reason": reason or "replan_limit_reached"}
 
 
 def _route_after_reflect(state: AgentState) -> str:
-    """只读 state：final_status → finalize，planner_reason → plan，否则 → executor。"""
+    """只读 state：final_status → finalize，replan_reason → plan，否则 → executor。"""
     if str(state.get("final_status") or "").strip():
         return "finalize"
-    if str(state.get("planner_reason") or "").strip():
+    if str(state.get("replan_reason") or "").strip():
         return "plan"
     return "executor"
 
@@ -122,11 +159,52 @@ async def finalize_node(state: AgentState) -> dict:
         }
 
     final_reply = await _generate_final_reply(state)
-    return {
+    result: dict = {
         "final_reply": final_reply,
         "current_subgraph": None,
         "messages": [*state["messages"], AIMessage(content=final_reply)],
     }
+
+    interaction = _build_ticket_interaction(state)
+    if interaction:
+        result["interaction"] = interaction
+
+    return result
+
+
+def _build_ticket_interaction(state: AgentState) -> dict | None:
+    """如果成功创建了工单，从 try_process 提取工单信息拼装 confirm_ticket 卡片。"""
+    final_status = str(state.get("final_status") or "").strip()
+    if final_status != "success":
+        return None
+
+    steps = list(state.get("steps") or [])
+    for step in reversed(steps):
+        tp = list(step.get("try_process") or [])
+        logger.info("[ticket_finalize] _build_ticket_interaction checking step try_process_len=%s", len(tp))
+        for i in range(len(tp) - 1, -1, -1):
+            entry = tp[i]
+            if entry.get("tool") == "create_ticket" and "result" in entry:
+                result = entry["result"]
+                if not isinstance(result, dict):
+                    continue
+                ticket_id = str(result.get("ticket_id") or result.get("id") or "").strip()
+                if not ticket_id:
+                    continue
+                ticket_detail = TicketInteractionDetail(
+                    ticket_id=ticket_id,
+                    ticket_title=str(result.get("ticket_title") or result.get("title") or "").strip(),
+                    ticket_type=str(result.get("ticket_type") or "").strip(),
+                    ticket_status=str(result.get("ticket_status") or "").strip(),
+                    ticket_status_label=str(result.get("ticket_status_label") or result.get("status_label") or "").strip(),
+                )
+                payload = build_interaction_payload(
+                    interaction_type="confirm_ticket",
+                    entities=[ticket_detail],
+                    selectable=False,
+                )
+                return payload.model_dump(exclude_none=True, exclude_defaults=True)
+    return None
 
 
 def get_ticket_workflow():
@@ -135,6 +213,7 @@ def get_ticket_workflow():
     graph.add_node("guard", guard_node)
     graph.add_node("plan", plan_node)
     graph.add_node("executor", executor_node)
+    graph.add_node("executor_interrupt", executor_interrupt_node)
     graph.add_node("reflect", reflect_node)
     graph.add_node("finalize", finalize_node)
 
@@ -149,7 +228,12 @@ def get_ticket_workflow():
         _route_after_plan,
         {"executor": "executor", "end": "finalize"},
     )
-    graph.add_edge("executor", "reflect")
+    graph.add_conditional_edges(
+        "executor",
+        _route_after_executor,
+        {"executor_interrupt": "executor_interrupt", "reflect": "reflect"},
+    )
+    graph.add_edge("executor_interrupt", "executor")
     graph.add_conditional_edges(
         "reflect",
         _route_after_reflect,
@@ -157,4 +241,4 @@ def get_ticket_workflow():
     )
     graph.add_edge("finalize", END)
 
-    return graph.compile()
+    return graph.compile(checkpointer=True)

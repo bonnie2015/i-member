@@ -1737,6 +1737,11 @@ a {
         radial-gradient(circle at top right, rgba(214, 179, 106, 0.12), transparent 48%);
 }
 
+.option-card-inline.non-selectable {
+    cursor: default;
+    user-select: none;
+}
+
 .interaction-card {
     height: 100%;
     padding: 6px 8px;

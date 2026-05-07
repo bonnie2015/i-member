@@ -116,7 +116,7 @@ async def plan_node(state: AgentState) -> Dict[str, Any]:
             "final_status": "failed",
             "final_reason": "plan_agent_failed",
             "current_subgraph": None,
-            "planner_reason": "plan_agent_failed",
+            "replan_reason": "plan_agent_failed",
             "messages": [*state["messages"], AIMessage(content=final_reply)],
         }
 
@@ -139,7 +139,7 @@ async def plan_node(state: AgentState) -> Dict[str, Any]:
             "final_status": "failed",
             "final_reason": final_reason,
             "current_subgraph": None,
-            "planner_reason": final_reason,
+            "replan_reason": final_reason,
             "messages": [*state["messages"], AIMessage(content=final_reply)],
         }
 
@@ -155,6 +155,6 @@ async def plan_node(state: AgentState) -> Dict[str, Any]:
         "expected_slots": expected_slots,
         "slots": merged_slots,
         "current_step_index": current_step_index,
-        "planner_reason": None,
+        "replan_reason": None,
         "goal": str(state.get("goal") or "").strip(),
     }

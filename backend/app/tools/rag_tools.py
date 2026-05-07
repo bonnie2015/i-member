@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any, Dict, List
 
 from langchain_core.tools import BaseTool, tool
@@ -14,30 +13,13 @@ from app.tools.business.execution_context import REQUEST_THREAD_ID_CTX, REQUEST_
 
 logger = get_logger("rag_tools")
 
+from app.llm.runtime import estimate_tokens
+
 _EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
 _SIMILARITY_TOP_K = 3
 _MAX_CONTEXT_TOKENS = 3000
-_TOKENIZER_DIR = Path(__file__).parent.parent / "rag" / "tokenizer"
 
 _index_instance = None
-_tokenizer = None
-
-
-def _get_tokenizer():
-    global _tokenizer
-    if _tokenizer is None:
-        from transformers import AutoTokenizer
-
-        _tokenizer = AutoTokenizer.from_pretrained(
-            str(_TOKENIZER_DIR),
-            trust_remote_code=True,
-        )
-        logger.info("[rag_tools] tokenizer loaded from %s", _TOKENIZER_DIR)
-    return _tokenizer
-
-
-def _count_tokens(text: str) -> int:
-    return len(_get_tokenizer().encode(text))
 
 
 class RagSearchInput(BaseModel):
@@ -75,7 +57,7 @@ def _get_index():
 
 async def _compress_if_needed(text: str, chunk_id: str) -> str:
     """超过 _MAX_CONTEXT_TOKENS 时调用摘要模型压缩。"""
-    token_count = _count_tokens(text)
+    token_count = estimate_tokens(text)
     if token_count <= _MAX_CONTEXT_TOKENS:
         return text
 
@@ -95,7 +77,7 @@ async def _compress_if_needed(text: str, chunk_id: str) -> str:
         user_id=user_id,
     )
     if compressed:
-        compressed_tokens = _count_tokens(compressed)
+        compressed_tokens = estimate_tokens(compressed)
         logger.info(
             "[rag_search] context_compressed chunk_id=%s tokens=%s→%s",
             chunk_id,
@@ -164,7 +146,7 @@ async def rag_search_tool(query: str) -> str:
 
             # 链路追踪
             trace_parts.append(
-                f"chunk={chunk_id[:20]} header={metadata.get('header_path', '')} tokens={_count_tokens(text)}"
+                f"chunk={chunk_id[:20]} header={metadata.get('header_path', '')} tokens={estimate_tokens(text)}"
             )
 
         logger.info(
@@ -257,7 +239,7 @@ async def size_guide_search_tool(query: str) -> str:
                 }
             )
             trace_parts.append(
-                f"chunk={chunk_id[:20]} header={metadata.get('header_path', '')} tokens={_count_tokens(text)}"
+                f"chunk={chunk_id[:20]} header={metadata.get('header_path', '')} tokens={estimate_tokens(text)}"
             )
 
         logger.info(
@@ -279,10 +261,9 @@ async def size_guide_search_tool(query: str) -> str:
 
 
 async def warmup_rag() -> None:
-    """启动时预热：加载 embedding 模型、tokenizer、连接 Qdrant。"""
+    """启动时预热：加载 embedding 模型、连接 Qdrant。"""
 
     logger.info("[rag_tools] warmup start")
-    _get_tokenizer()
     _get_index()
     logger.info("[rag_tools] warmup done")
 

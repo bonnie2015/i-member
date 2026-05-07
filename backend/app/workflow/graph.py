@@ -303,6 +303,6 @@ async def invoke_member_ops(
     return {
         "thread_id": thread_id,
         "reply": reply,
-        "interaction": None,
+        "interaction": state_snapshot.get("interaction"),
         "products": products,
     }

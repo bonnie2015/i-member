@@ -205,6 +205,7 @@ def build_interaction_payload(
     *,
     interaction_type: InteractionType,
     entities: list[InteractionEntity],
+    selectable: bool = True,
 ) -> InteractionPayload:
     items: list[InteractionItem] = []
     for entity in entities:
@@ -225,7 +226,7 @@ def build_interaction_payload(
                 key=key,
                 label=label,
                 detail=entity,
-                selectable=True,
+                selectable=selectable,
             )
         )
     return InteractionPayload(

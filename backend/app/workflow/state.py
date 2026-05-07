@@ -33,10 +33,11 @@ class AgentState(TypedDict, total=False):
     current_step_index: int
     expected_slots: List[Dict[str, Any]]
     replan_count: int
-    planner_reason: Optional[str]
+    replan_reason: Optional[str]
     slots: Optional[Dict[str, Any]]
     final_status: Optional[Literal["success", "failed", "cancelled"]]
     final_reason: Optional[str]
+    interaction: Optional[Dict[str, Any]]
 
 
 def extract_last_service_round(messages: List[BaseMessage]) -> List[BaseMessage]:
@@ -90,7 +91,7 @@ def get_service_clear_state() -> Dict[str, Any]:
         "current_step_index": 0,
         "expected_slots": [],
         "replan_count": 0,
-        "planner_reason": None,
+        "replan_reason": None,
         "slots": None,
         "guard_decision": None,
         "messages": [],

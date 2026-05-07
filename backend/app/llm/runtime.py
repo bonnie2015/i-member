@@ -335,3 +335,12 @@ def with_usage_logging(
         raise RuntimeError("with_usage_logging only supports async invocation")
 
     return RunnableLambda(_invoke, afunc=_ainvoke, name=f"{node}_logged_model")
+
+
+# ---- token estimation ----
+
+def estimate_tokens(text: str) -> int:
+    """DeepSeek 官方换算率估算 token 数。中文字符≈0.6, 英文字符≈0.3。"""
+    cn = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+    en = len(text) - cn
+    return int(cn * 0.6 + en * 0.3)

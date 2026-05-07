@@ -148,7 +148,7 @@ async function loadUserContext() {
     try {
         const displayName = getDisplayName(MOCK_USER_ID);
         $memberLevel.textContent  = '黄金会员';
-        $memberPoints.textContent = '积分：8500 → 铂金还需 1500';
+        $memberPoints.textContent = '积分：8500 → j还需 1500';
         $memberName.textContent   = '用户：' + displayName;
         updateWelcomeCopy(displayName);
     } catch { /* ignore */ }
@@ -792,8 +792,9 @@ function handleInteraction(targetRow, reply, interaction) {
     if (options.length > 0) {
         const label = textOrEmpty(reply) ? '' : defaultInteractionLabel(interaction.interaction_type);
         appendInlineInteraction(targetRow, options, label);
-        setUiState('select');
-        return true;
+        const hasSelectable = options.some(opt => opt.selectable !== false);
+        setUiState(hasSelectable ? 'select' : 'idle');
+        return hasSelectable;
     } else {
         setUiState('idle');
         $inputHint.textContent = '请继续回复';
@@ -805,12 +806,13 @@ function handleInteraction(targetRow, reply, interaction) {
 function toSelectableOptions(interaction) {
     if (!interaction || !Array.isArray(interaction.items)) return [];
     return interaction.items
-        .filter(item => item && item.selectable !== false)
+        .filter(item => !!item)
         .map(item => ({
             label: String(item.label || item.key || ''),
             value: String(item.key || (item.detail && item.detail.action) || item.label || ''),
             detail: isObj(item.detail) ? item.detail : {},
             interactionType: String(interaction.interaction_type || ''),
+            selectable: item.selectable !== false,
         }));
 }
 
@@ -899,13 +901,17 @@ function appendInlineInteraction(targetRow, options, label = '') {
     options.forEach(opt => {
         const labelText = typeof opt === 'string' ? opt : String(opt.label || opt.value || '');
         const value = typeof opt === 'string' ? opt : String(opt.value || opt.label || '');
-        const card = document.createElement('button');
+        const selectable = !opt || typeof opt === 'string' ? true : opt.selectable !== false;
+        const card = document.createElement(selectable ? 'button' : 'div');
         card.className = 'option-card option-card-inline';
+        if (!selectable) card.classList.add('non-selectable');
         card.innerHTML = renderInteractionOptionContent(opt, labelText);
-        card.addEventListener('click', () => {
-            card.classList.add('selected');
-            sendText(value);
-        });
+        if (selectable) {
+            card.addEventListener('click', () => {
+                card.classList.add('selected');
+                sendText(value);
+            });
+        }
         cards.appendChild(card);
     });
 

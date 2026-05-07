@@ -465,7 +465,7 @@ async def get_user_orders(
     order_start_time: Optional[str] = None,
     order_end_time: Optional[str] = None,
     page: int = 1,
-    page_size: int = 20,
+    page_size: int = 10,
 ) -> Dict[str, Any]:
     """列出当前用户订单。缺失 order_id 时可先用它找候选订单。返回空列表说明确实没有符合筛选条件的订单，不要反复试。"""
     return await call_scrm_api(

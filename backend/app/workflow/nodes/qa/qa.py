@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -8,11 +9,12 @@ from app.agents.base import AgentInput
 from app.agents.qa_agent import qa_agent
 from app.agents.summary_agent import summary_agent
 from app.config.logging import get_logger
+from app.llm.runtime import estimate_tokens
 from app.workflow.state import AgentState
 
 logger = get_logger("qa_node")
 
-_MAX_QA_TURNS = 15
+_MAX_QA_TOKENS = 3000
 _FALLBACK_REPLY = "我先帮您确认一下相关信息，您也可以把问题再说具体一点，我继续为您处理。"
 
 
@@ -23,10 +25,6 @@ def _last_user_message(messages: List) -> str:
             if content:
                 return content
     return ""
-
-
-def _count_turns(messages: List) -> int:
-    return sum(1 for m in messages if isinstance(m, HumanMessage))
 
 
 async def qa_node(state: AgentState) -> Dict[str, Any]:
@@ -52,7 +50,9 @@ async def qa_node(state: AgentState) -> Dict[str, Any]:
             "messages": [*messages, AIMessage(content=_FALLBACK_REPLY)],
         }
 
-    if turns <= _MAX_QA_TURNS:
+    # 用 token 估算代替固定轮数判断是否压缩
+    msg_text = json.dumps([{"role": type(m).__name__, "content": str(getattr(m, "content", ""))[:200]} for m in messages], ensure_ascii=False)
+    if estimate_tokens(msg_text) <= _MAX_QA_TOKENS:
         result = await qa_agent.run(AgentInput(
             user_query=current_query,
             user_context=state.get("user_context") or {},
