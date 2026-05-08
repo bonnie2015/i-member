@@ -25,7 +25,9 @@ def _build_transition_from_qa(
     state: AgentState,
 ) -> Dict[str, Any]:
     """从 QA 转出到其他服务：善后 + 保留最后一轮对话 + 设置新路由。"""
-    spawn_post_process_tasks(dict(state))
+    qa_state = dict(state)
+    qa_state["messages"] = all_messages[:-1]  # 排除触发切换的最后一条用户消息
+    spawn_post_process_tasks(qa_state)
 
     all_messages = list(state.get("messages") or [])
     last_round = extract_last_service_round(all_messages)

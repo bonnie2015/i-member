@@ -171,9 +171,10 @@ async def executor_node(state: AgentState) -> Dict[str, Any]:
     tools = _resolve_step_tools(step)
     tool_map = {str(t.name): t for t in tools if str(t.name) not in ("ask_user", "finish_step")}
 
+    prompt_step = {k: v for k, v in step.items() if k != "try_process"}
     system_prompt = await build_ticket_execute_system_prompt(
         runtime_context=TicketExecuteRuntimePayload(
-            step=step,
+            step=prompt_step,
             slots=existing_slots,
             expected_slots=expected_slots,
         ),
@@ -252,8 +253,9 @@ async def _run_executor_loop(
             try_process.append({"tool": "ask_user", "args": tool_args, "interrupt_payload": payload})
             step["try_process"] = try_process
             steps[step_idx] = step
-            logger.info("[executor_node] thread_id=%s ask_user reply=%s",
-                        thread_id, str(tool_args.get("reply") or "")[:80])
+            logger.info("[executor_node] thread_id=%s ask_user reply=%s interaction_type=%s candidate_keys=%s",
+                        thread_id, str(tool_args.get("reply") or "")[:80],
+                        tool_args.get("interaction_type"), tool_args.get("candidate_keys"))
             return {"steps": steps, "slots": existing_slots, "current_step_index": step_idx}
 
         # === finish_step ===

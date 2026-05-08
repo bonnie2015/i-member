@@ -14,7 +14,7 @@ from app.workflow.state import AgentState
 
 logger = get_logger("qa_node")
 
-_MAX_QA_TOKENS = 3000
+_MAX_QA_TOKENS = 2000
 _FALLBACK_REPLY = "我先帮您确认一下相关信息，您也可以把问题再说具体一点，我继续为您处理。"
 
 
@@ -41,7 +41,6 @@ async def qa_node(state: AgentState) -> Dict[str, Any]:
             "messages": [AIMessage(content=_FALLBACK_REPLY)],
         }
 
-    turns = _count_turns(messages)
     current_query = _last_user_message(messages)
     if not current_query:
         return {
@@ -61,18 +60,18 @@ async def qa_node(state: AgentState) -> Dict[str, Any]:
             messages=messages,
         ))
         reply = result.reply or _FALLBACK_REPLY
-        logger.info("[qa_node] thread_id=%s end turns=%s status=%s", thread_id, turns, result.status.value)
+        logger.info("[qa_node] thread_id=%s end status=%s", thread_id, result.status.value)
         return {
             "final_reply": reply,
             "messages": [*messages, AIMessage(content=reply)],
             "current_subgraph": "qa",
         }
 
-    # 超过15轮：压缩旧历史，替换 messages 为压缩摘要 + 最新用户消息 + AI 回复
+    # 超过 token 阈值：压缩旧历史，替换 messages 为压缩摘要 + 最新用户消息 + AI 回复
     last_idx = max(i for i, m in enumerate(messages) if isinstance(m, HumanMessage))
     history = messages[:last_idx]
 
-    logger.info("[qa_node] thread_id=%s compress turns=%s history_msgs=%s", thread_id, turns, len(history))
+    logger.info("[qa_node] thread_id=%s compress history_msgs=%s", thread_id, len(history))
 
     summary = await summary_agent.compress_qa(
         old_messages=history,

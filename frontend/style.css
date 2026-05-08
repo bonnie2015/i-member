@@ -1738,8 +1738,23 @@ a {
 }
 
 .option-card-inline.non-selectable {
+    grid-column: 1 / -1;
     cursor: default;
     user-select: none;
+    background:
+        linear-gradient(180deg, rgba(242, 245, 248, 0.72), rgba(235, 240, 245, 0.58));
+    border-color: rgba(22, 38, 61, 0.04);
+    border-left: 3px solid rgba(22, 38, 61, 0.1);
+    box-shadow: none;
+}
+
+.option-card-inline.non-selectable:hover {
+    transform: none;
+    border-color: rgba(22, 38, 61, 0.04);
+    border-left: 3px solid rgba(22, 38, 61, 0.1);
+    background:
+        linear-gradient(180deg, rgba(242, 245, 248, 0.72), rgba(235, 240, 245, 0.58));
+    box-shadow: none;
 }
 
 .interaction-card {
