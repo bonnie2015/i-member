@@ -1,0 +1,22 @@
+{
+  "name": "member-ops-agent-frontend",
+  "version": "1.0.0",
+  "description": "Member Ops Agent Frontend - 智能客服前端界面",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "chat",
+    "ai",
+    "frontend",
+    "member-ops"
+  ],
+  "author": "Member Ops Team",
+  "license": "MIT"
+}

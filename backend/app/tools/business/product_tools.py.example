@@ -1,0 +1,29 @@
+"""
+商品工具模板 — 品牌方替换并重命名为 product_tools.py
+提供 get_product_search_tools() 和 get_product_detail() 两个接口。
+"""
+from typing import Any, Dict, List
+
+from langchain_core.tools import tool
+
+
+# ── 在此定义商品搜索和详情工具 ──────────────────────────
+
+# @tool("search_products", args_schema=SearchProductsInput)
+# async def search_products(keyword: str, category: str = None) -> Dict[str, Any]:
+#     """搜索商品"""
+#     ...
+
+
+def get_product_search_tools() -> List:
+    """返回商品搜索工具列表。"""
+    return [
+        # search_products,
+        # ...
+    ]
+
+
+@tool("get_product_detail", args_schema=None)
+async def get_product_detail(product_id: str) -> Dict[str, Any]:
+    """获取商品详情（尺码、颜色、库存等）。"""
+    raise NotImplementedError("品牌方需要实现 get_product_detail")

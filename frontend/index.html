@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>品牌伙伴 · 智能客服</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+</head>
+<body>
+    <div class="page-shell">
+        <div class="page-glow page-glow-left"></div>
+        <div class="page-glow page-glow-right"></div>
+        <div class="page-texture"></div>
+
+        <div class="app">
+            <aside class="sidebar">
+                <section class="sidebar-figure">
+                    <model-viewer
+                        class="spline-frame"
+                        src="assets/aa934f0e80cc97de7f5db7f4a3657cf0.glb"
+                        alt="鬼冢虎 3D 形象"
+                        camera-controls
+                        auto-rotate
+                        shadow-intensity="0"
+                        exposure="1"
+                        interaction-prompt="none"
+                        touch-action="pan-y"
+                        style="--poster-color: transparent;"
+                    ></model-viewer>
+                </section>
+
+                <div class="ui-cache" aria-hidden="true">
+                    <div class="member-level" id="memberLevel">加载中...</div>
+                    <div class="member-points" id="memberPoints"></div>
+                    <div class="member-name" id="memberName"></div>
+                </div>
+            </aside>
+
+            <main class="chat-main">
+                <header class="chat-header">
+                    <div class="chat-hero">
+                        <div class="chat-kicker">ONITSUKA TIGER</div>
+                        <div class="chat-title">
+                            <span class="chat-title-name">私享品牌伙伴</span>
+                            <span class="chat-title-sub" id="threadLabel"></span>
+                        </div>
+                    </div>
+
+                    <div class="chat-header-actions">
+                        <div class="view-tabs" role="tablist" aria-label="视图切换">
+                            <button class="view-tab active" id="chatTabBtn" type="button" role="tab" aria-selected="true" aria-controls="chatView">对话</button>
+                            <button class="view-tab" id="mockTabBtn" type="button" role="tab" aria-selected="false" aria-controls="mockDataView">Mock 数据</button>
+                        </div>
+                        <button class="new-chat-btn" id="newChatBtn" title="新对话" aria-label="新对话">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        </button>
+                    </div>
+                </header>
+
+                <section class="conversation-shell" id="chatView">
+                    <div class="messages" id="messages">
+                        <div class="welcome-msg">
+                            <div class="welcome-avatar">BP</div>
+                            <div class="welcome-text">
+                                <p id="welcomeGreeting">Hi，欢迎回来。</p>
+                                <p id="welcomeFollowup">今天想看看新鞋、聊聊搭配，还是顺手处理一下会员服务？我会把节奏放轻一点，陪你慢慢挑到顺眼的那一双。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="interaction-area" id="interactionArea">
+                        <div class="action-panel select-panel hidden" id="selectPanel">
+                            <div class="action-panel-label" id="selectLabel"></div>
+                            <div class="option-cards" id="optionCards"></div>
+                        </div>
+
+                        <div class="input-panel" id="inputPanel">
+                            <div class="input-panel-head">
+                                <span class="input-title">发起一轮新的咨询</span>
+                                <span class="input-caption">一句话说出你的需求，我会继续追问并帮你缩小范围</span>
+                            </div>
+                            <div class="input-row">
+                                <textarea id="messageInput" rows="1" placeholder="例如：帮我找几双白色、经典一点的 MEXICO 66..." maxlength="500"></textarea>
+                                <button id="sendBtn" class="send-btn" disabled>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="input-footer">
+                                <span id="charCount">0 / 500</span>
+                                <span class="hint" id="inputHint"></span>
+                                <div class="status-indicator status-indicator-bottom">
+                                    <span class="dot" id="statusDot"></span>
+                                    <span id="statusText">连接中...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="mock-data-shell hidden" id="mockDataView">
+                    <div class="mock-data-head">
+                        <div>
+                            <div class="mock-data-kicker">SCRM MOCK</div>
+                            <h2 class="mock-data-title">当前模拟数据</h2>
+                        </div>
+                        <div class="mock-data-actions">
+                            <button class="mock-action-btn" id="mockRefreshBtn" type="button">刷新</button>
+                            <button class="mock-action-btn mock-action-secondary" id="mockResetBtn" type="button">重置</button>
+                        </div>
+                    </div>
+                    <div class="mock-status" id="mockStatus">尚未加载</div>
+                    <div class="mock-summary-grid" id="mockSummaryGrid"></div>
+                    <div class="mock-data-grid">
+                        <section class="mock-section mock-section-orders">
+                            <div class="mock-section-head">
+                                <h3>订单</h3>
+                                <span id="mockOrderCount"></span>
+                            </div>
+                            <div class="mock-list" id="mockOrders"></div>
+                        </section>
+                        <div class="mock-side-column">
+                            <section class="mock-section">
+                                <div class="mock-section-head">
+                                    <h3>用户与积分</h3>
+                                </div>
+                                <div class="mock-list" id="mockUserPanel"></div>
+                            </section>
+                            <section class="mock-section">
+                                <div class="mock-section-head">
+                                    <h3>工单</h3>
+                                    <span id="mockTicketCount"></span>
+                                </div>
+                                <div class="mock-list" id="mockTickets"></div>
+                            </section>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <div class="mock-modal hidden" id="mockTicketModal" aria-hidden="true">
+                <div class="mock-modal-backdrop" id="mockTicketModalBackdrop"></div>
+                <section class="mock-modal-panel" role="dialog" aria-modal="true" aria-labelledby="mockTicketModalTitle">
+                    <button class="mock-modal-close" id="mockTicketModalClose" type="button" aria-label="关闭">×</button>
+                    <div id="mockTicketModalContent"></div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

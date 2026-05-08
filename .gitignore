@@ -1,0 +1,94 @@
+# 环境变量文件（包含敏感信息）
+.env
+.env.*
+!.env.example
+
+# 内部文档
+docs/
+
+# 品牌业务文件 — 品牌方按 .example 模板自行提供
+backend/app/tools/business/*.py
+!backend/app/tools/business/*.example
+backend/app/skills/ticket/*/SKILL.md
+!backend/app/skills/ticket/*/SKILL.md.example
+backend/app/prompts/prompt_prefix.txt
+
+# Tokenizer 模型文件（较大，不需要提交）
+backend/app/rag/tokenizer/tokenizer.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+node_modules/
+frontend/node_modules/
+
+# 日志
+*.log
+backend/logs/
+
+# 数据文件
+data/
+
+tests/
+test/
+
+.trae/
+.codex/
+.codex*/
+.DS_Store
+.claude/
+*-skills-snapshot.md
+*testcase*
+*test_case*
+backend/app/run_*_cases.py
+backend/app/scripts/*sampling*.json
+tmp_*case*.json
+
+# Claude Code / Agent config
+CLAUDE.md
+AGENTS.md
+
+# pytest
+.pytest_cache/
+backend/.pytest_cache/
+
+# scripts
+backend/scripts/
+scripts/
+
+# Mock 数据和脚本
+mock_scrm/
+backend/scripts/
+scripts/
+*.glb
+*.png

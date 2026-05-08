@@ -1,0 +1,30 @@
+"""
+业务 API 工具模板 — 品牌方替换并重命名为 api_tools.py
+提供 get_business_tools() 和 call_business_api() 两个接口。
+"""
+from typing import Any, Dict, List
+
+from langchain_core.tools import tool
+
+
+# ── 在此定义业务 API 工具 ──────────────────────────────
+# 参考示例：
+
+# @tool("get_orders", args_schema=GetOrdersInput)
+# async def get_orders(user_id: str) -> Dict[str, Any]:
+#     """获取用户订单列表"""
+#     return await call_business_api("get_orders", {"user_id": user_id})
+
+
+def get_business_tools() -> List:
+    """返回业务 API 工具列表。品牌方在此注册所有业务工具。"""
+    return [
+        # get_orders,
+        # get_order_detail,
+        # ...
+    ]
+
+
+async def call_business_api(endpoint: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """统一的业务 API 调用入口。品牌方在此实现 HTTP 请求、鉴权、限流等。"""
+    raise NotImplementedError("品牌方需要实现 call_business_api")
