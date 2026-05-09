@@ -1,4 +1,4 @@
-> ⚠️ **免责声明**：本项目仅为个人学习与技术验证用途，不构成任何商业产品。详见 [DISCLAIMER.md](./DISCLAIMER.md)。
+> ⚠️ **免责声明**：本项目仅为个人学习与技术验证用途，不构成任何商业产品。详见 [DISCLAIMER.md](./docs/DISCLAIMER.md)。
 
 # i-member · 多 Agent 智能品牌伙伴
 
@@ -51,45 +51,44 @@ LangGraph · LangChain · FastAPI · Redis · Qdrant · DeepSeek API · Ollama (
 
 ## 效果展示
 
-> ⚠️ 所有截图包含的品牌相关示例数据，**仅供技术演示用途**，不代表真实商业交易或客户信息。
-
 | 场景 | 详情 | 特性 |
 |------|------|------|
 | **工单办理** | [#3](https://github.com/bonnie2015/i-member/issues/3#issuecomment-4405109262) | 交互卡片选择订单 → 确认商品 → 收集原因 → 建单成功 → 自动嵌入工单确认卡片，全链路闭环 |
 | **商品推荐** | [#9](https://github.com/bonnie2015/i-member/issues/9#issuecomment-4405059807) | 春季鲜亮色偏好收敛 → 酒红色 MEXICO 66 SD 选定 → 搭配黄色 T 恤 + 连衣裙下单 |
 | **知识问答** | [#11](https://github.com/bonnie2015/i-member/issues/11#issuecomment-4405130128) | 隐私政策 RAG 检索 → 用户纠正回答 → 模型自我修正 → 服务切换至工单查询 |
 
-## 性能表现
+> ⚠️ 以上 Issue 中的截图包含的品牌相关示例数据，**仅供技术演示用途**，不代表真实商业交易或客户信息。
 
-> 当前测试环境下的粗粒度数据，实际表现与具体业务场景和接入数据相关，正式接入后需要进一步精调。
+## 性能表现
 
 - **工单场景**：单轮用户回复处理 2-6s，首响约 11s。优化后单轮 token 稳定在 2.7k-4.8k，实际完整服务结束与用户回复、步骤规划方式强相关。[详细数据](https://github.com/bonnie2015/i-member/issues/15#issuecomment-4402489608)
 - **推荐场景**：单次推荐响应 5-8s，含商品搜索 1-2 次 LLM 调用，token ~3.5k。[详细数据](https://github.com/bonnie2015/i-member/issues/15#issuecomment-4402895154)
 - **咨询场景**：RAG 检索 + 回答 5-7s，压缩比约 43%，压缩后回答质量无退化。[详细数据](https://github.com/bonnie2015/i-member/issues/15#issuecomment-4403400695)
 
-## 工程设计亮点
+> 以上为当前测试环境下的粗粒度数据，实际表现与具体业务场景和接入数据相关，正式接入后需要进一步精调。
+
+## 工程设计
+
+> [完整版](./docs/ENGINEERING.md)
 
 ### 上下文管理
 
-- **跨服务记忆与对话延续**：服务结束后只保留最后一轮对话消息，其余清空——既避免多轮服务的对话膨胀，又保留足够上下文让下一个服务理解用户意图。同时写入服务记忆摘要（Redis list，TTL 2 天，最多 10 条），支持跨会话的服务连续性
-- **Token 感知的自动压缩**：基于 DeepSeek 官方换算公式实时估算 token，超阈值自动将旧条目压缩为摘要，保留最近一对完整记录
-- **技能渐进披露**：按流程阶段分标签加载 SKILL.md，replan 时 prompt 减半但关键约束完整保留
-- **qa 对话压缩**：对话记录和检索结果按 token 阈值触发压缩
-- **推荐 guard 摘要**：recommend 子图通过 guard 节点做累积摘要与锚点商品抽取，将多轮推荐历史压缩为摘要传递，控制上下文规模
-- **try_process 审计追踪**：当前步骤的工具调用链作为单一数据源，支持 token 超阈值自动压缩和断点恢复，不依赖上下文变量
-- **replan 上下文注入**：步骤失败时将 try_process 完整回传给 planner，包含实际工具返回结果，使重规划基于真实数据而非推测
+- **跨服务记忆**：服务切换时清空运行时状态，保留最后一轮对话和摘要，避免上下文膨胀
+- **try_process 审计追踪**：工具调用链作为单一数据源，支持 token 自动压缩和断点恢复
+- **技能渐进披露**：按阶段分标签加载 SKILL.md，replan 时 prompt 减半
+- **各子图差异化策略**：qa 按 token 压缩对话；推荐 guard 抽取锚点商品；replan 回传 try_process
 
 ### 用户体验
 
-- **快速追问**：利用 LangGraph interrupt() 机制进行追问以及在挂起处快速恢复
-- **中断恢复**：手动 ReAct 循环，中断点从四层嵌套的独立子图提升到主图可达节点，checkpoint 原生覆盖
-- **结构化交互卡片**：提供交互卡片类型与用户进行可视化交互，体验更友好
+- **中断恢复**：三版迭代，手动 ReAct + 独立 interrupt 节点，checkpoint 原生覆盖
+- **结构化交互卡片**：select（可选）/ confirm（只展示），建单自动嵌入确认卡片
+- **多 tool_call 支持**：LLM 一次返回多个工具时逐个执行逐个应答
 
 ### Agent 协作与自愈
 
-- **手动 ReAct 循环**：精确控制工具调用上限，接近上限时动态缩减可用工具，try_process 作为 transaction log 支持断点恢复
-- **replan 自愈**：步骤失败或超上限时，reflect 携带 try_process 触发 planner 重规划，基于实际工具返回结果而非推测，最多 2 次
-- **事实提取与去重**：user_facts 基于 casefold 去重，支持 add + delete 双向变更
+- **手动 ReAct 循环**：精确控制工具调用上限，动态缩减可用工具
+- **replan 自愈**：步骤失败回溯 try_process 重新规划，最多 2 次
+- **事实提取**：casefold 去重，支持 add + delete 双向变更
 
 ## 品牌接入指南
 
