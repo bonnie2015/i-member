@@ -1,4 +1,4 @@
-> ⚠️ **免责声明**：本项目仅为个人学习与技术验证用途，不构成任何商业产品。详见 [DISCLAIMER.md](./DISCLAIMER.md)。
+> ⚠️ **免责声明**：本项目仅为个人学习与技术验证用途，不构成任何商业产品。详见 [DISCLAIMER.md](./docs/DISCLAIMER.md)。
 
 # i-member · 多 Agent 智能品牌伙伴
 
@@ -8,37 +8,31 @@
 
 **Milestone 1: 核心在线服务能力落地** — 已完成 Router、QA、Ticket、Recommend、Post Process 的核心链路，可运行、可展示。
 
-## 架构
+## 核心架构
 
 ```
- 用户消息 → Router
-         （意图分类）
+用户消息 → FastAPI → invoke_member_ops
+                         │
+                    _build_invoke_input
+                    (中断检测 / 上下文加载)
+                         │
+                    wf.ainvoke()
+                         │
+              ┌──────────┼──────────┐
+              ▼          ▼          ▼
+           router     ticket     qa/recommend
+         (意图分类)  (子图)      (节点)
               │
-    ┌─────────┼─────────┐
-    ▼         ▼         ▼
-  Ticket    QA       Recommend
-  (子图)    (节点)    (节点)
-
-Ticket :
-                   ─────────────────────────────────────────────────
-                   ↓                              │                 │
-  guard → plan → executor ──(ask_user)──→ executor_interrupt        │
-               │       │                                            │
-               │       └──(done)──→ reflect ────────────────────────┤
-               │                   │    │
-               │                   │  replan → plan
-               │                   │
-               └──(失败/空)──→ finalize
-
-Recommend:
-  guard ──(continue)──→ recommend ──→ guard
-    │                      │
-    └──(end)──→ 结束        └── 商品搜索/详情 → reply_with_products
-
-
-Post Process（服务结束后异步）:
-  ├─ 服务记忆摘要 (ollama) → Redis
-  └─ 用户事实提取 (deepseek) → Redis
+    ┌─────ticket─────┐    ┌──qa──┐  ┌──recommend──┐
+    │ guard → plan   │    │ RAG  │  │ guard →     │
+    │  → executor    │    │ 检索 │  │  search →    │
+    │  → reflect     │    │ 回答 │  │  recommend   │
+    │  → finalize    │    └──────┘  └──────────────┘
+    └────────────────┘
+         │
+    post_process (后台异步)
+    ├─ service_summary (ollama)
+    └─ user_facts (deepseek)
 ```
 
 主图负责意图路由和中断恢复。三个子图分别为[工单模块](https://github.com/bonnie2015/i-member/issues/3)、[推荐模块](https://github.com/bonnie2015/i-member/issues/9)、[咨询模块](https://github.com/bonnie2015/i-member/issues/3)。工单模块是最复杂的部分，五节点状态机 + 独立 interrupt 节点实现完整闭环。所有状态通过 Redis checkpoint 持久化。
@@ -73,29 +67,28 @@ LangGraph · LangChain · FastAPI · Redis · Qdrant · DeepSeek API · Ollama (
 
 > 以上为当前测试环境下的粗粒度数据，实际表现与具体业务场景和接入数据相关，正式接入后需要进一步精调。
 
-## 工程设计亮点
+## 工程设计
+
+> [完整版](./docs/ENGINEERING.md)
 
 ### 上下文管理
 
-- **跨服务记忆与对话延续**：服务结束后只保留最后一轮对话消息，其余清空——既避免多轮服务的对话膨胀，又保留足够上下文让下一个服务理解用户意图。同时写入服务记忆摘要（Redis list，TTL 2 天，最多 10 条），支持跨会话的服务连续性
-- **Token 感知的自动压缩**：基于 DeepSeek 官方换算公式实时估算 token，超阈值自动将旧条目压缩为摘要，保留最近一对完整记录
-- **技能渐进披露**：按流程阶段分标签加载 SKILL.md，replan 时 prompt 减半但关键约束完整保留
-- **qa 对话压缩**：对话记录和检索结果按 token 阈值触发压缩
-- **推荐 guard 摘要**：recommend 子图通过 guard 节点做累积摘要与锚点商品抽取，将多轮推荐历史压缩为摘要传递，控制上下文规模
-- **try_process 审计追踪**：当前步骤的工具调用链作为单一数据源，支持 token 超阈值自动压缩和断点恢复，不依赖上下文变量
-- **replan 上下文注入**：步骤失败时将 try_process 完整回传给 planner，包含实际工具返回结果，使重规划基于真实数据而非推测
+- **跨服务记忆**：服务切换时清空运行时状态，保留最后一轮对话和摘要，避免上下文膨胀
+- **try_process 审计追踪**：工具调用链作为单一数据源，支持 token 自动压缩和断点恢复
+- **技能渐进披露**：按阶段分标签加载 SKILL.md，replan 时 prompt 减半
+- **各子图差异化策略**：qa 按 token 压缩对话；推荐 guard 抽取锚点商品；replan 回传 try_process
 
 ### 用户体验
 
-- **快速追问**：利用 LangGraph interrupt() 机制进行追问以及在挂起处快速恢复
-- **中断恢复**：手动 ReAct 循环，中断点从四层嵌套的独立子图提升到主图可达节点，checkpoint 原生覆盖
-- **结构化交互卡片**：提供交互卡片类型与用户进行可视化交互，体验更友好
+- **中断恢复**：三版迭代，手动 ReAct + 独立 interrupt 节点，checkpoint 原生覆盖
+- **结构化交互卡片**：select（可选）/ confirm（只展示），建单自动嵌入确认卡片
+- **多 tool_call 支持**：LLM 一次返回多个工具时逐个执行逐个应答
 
 ### Agent 协作与自愈
 
-- **手动 ReAct 循环**：精确控制工具调用上限，接近上限时动态缩减可用工具，try_process 作为 transaction log 支持断点恢复
-- **replan 自愈**：步骤失败或超上限时，reflect 携带 try_process 触发 planner 重规划，基于实际工具返回结果而非推测，最多 2 次
-- **事实提取与去重**：user_facts 基于 casefold 去重，支持 add + delete 双向变更
+- **手动 ReAct 循环**：精确控制工具调用上限，动态缩减可用工具
+- **replan 自愈**：步骤失败回溯 try_process 重新规划，最多 2 次
+- **事实提取**：casefold 去重，支持 add + delete 双向变更
 
 ## 品牌接入指南
 
