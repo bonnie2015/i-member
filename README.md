@@ -69,7 +69,7 @@ LangGraph · LangChain · FastAPI · Redis · Qdrant · DeepSeek API · Ollama (
 
 ## 工程设计
 
-> [完整版](./docs/ENGINEERING.md)
+> [详见](./docs/ENGINEERING.md)
 
 ### 上下文管理
 
