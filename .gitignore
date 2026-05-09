@@ -4,7 +4,9 @@
 !.env.example
 
 # 内部文档
-docs/
+docs/*
+!docs/ENGINEERING.md
+!docs/DISCLAIMER.md
 
 # Python
 __pycache__/
