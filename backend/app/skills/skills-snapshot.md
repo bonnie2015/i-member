@@ -1,0 +1,17 @@
+<skills>
+    <skill>
+        <name>equity-ticket</name>
+        <description>处理会员权益相关诉求，基于会员、积分与工单接口完成查询、确认、创建与追踪。</description>
+        <location>app/agents/skills/equity-ticket/SKILL.md</location>
+    </skill>
+    <skill>
+        <name>refund-ticket</name>
+        <description>处理退货/换货相关诉求，基于订单、商品与工单接口完成查询、确认、创建与追踪。</description>
+        <location>app/agents/skills/refund-ticket/SKILL.md</location>
+    </skill>
+    <skill>
+        <name>unsatisfy-ticket</name>
+        <description>处理质量问题与投诉诉求，基于订单、商品与工单接口完成查询、确认、创建与追踪。</description>
+        <location>app/agents/skills/unsatisfy-ticket/SKILL.md</location>
+    </skill>
+</skills>

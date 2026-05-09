@@ -8,36 +8,31 @@
 
 **Milestone 1: 核心在线服务能力落地** — 已完成 Router、QA、Ticket、Recommend、Post Process 的核心链路，可运行、可展示。
 
-## 架构
+## 核心架构
 
 ```
- 用户消息 → Router
-         （意图分类）
+用户消息 → FastAPI → invoke_member_ops
+                         │
+                    _build_invoke_input
+                    (中断检测 / 上下文加载)
+                         │
+                    wf.ainvoke()
+                         │
+              ┌──────────┼──────────┐
+              ▼          ▼          ▼
+           router     ticket     qa/recommend
+         (意图分类)  (子图)      (节点)
               │
-    ┌─────────┼─────────┐
-    ▼         ▼         ▼
-  Ticket    QA       Recommend
-  (子图)    (节点)    (节点)
-
-Ticket :           ─────────────────────────────────────────────────
-                   ↓                              │                 │
-  guard → plan → executor ──(ask_user)──→ executor_interrupt        │
-               │       │                                            │
-               │       └──(done)──→ reflect ────────────────────────┤
-               │                   │    │
-               │                   │  replan → plan
-               │                   │
-               └──(失败/空)──→ finalize
-
-Recommend:
-  guard ──(continue)──→ recommend ──→ guard
-    │                      │
-    └──(end)──→ 结束        └── 商品搜索/详情 → reply_with_products
-
-
-Post Process（服务结束后异步）:
-  ├─ 服务记忆摘要 (ollama) → Redis
-  └─ 用户事实提取 (deepseek) → Redis
+    ┌─────ticket─────┐    ┌──qa──┐  ┌──recommend──┐
+    │ guard → plan   │    │ RAG  │  │ guard →     │
+    │  → executor    │    │ 检索 │  │  search →    │
+    │  → reflect     │    │ 回答 │  │  recommend   │
+    │  → finalize    │    └──────┘  └──────────────┘
+    └────────────────┘
+         │
+    post_process (后台异步)
+    ├─ service_summary (ollama)
+    └─ user_facts (deepseek)
 ```
 
 主图负责意图路由和中断恢复。三个子图分别为[工单模块](https://github.com/bonnie2015/i-member/issues/3)、[推荐模块](https://github.com/bonnie2015/i-member/issues/9)、[咨询模块](https://github.com/bonnie2015/i-member/issues/3)。工单模块是最复杂的部分，五节点状态机 + 独立 interrupt 节点实现完整闭环。所有状态通过 Redis checkpoint 持久化。
