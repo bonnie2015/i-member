@@ -16,12 +16,12 @@
                     _build_invoke_input
                     (中断检测 / 上下文加载)
                          │
-                    wf.ainvoke()
+                       router
                          │
               ┌──────────┼──────────┐
               ▼          ▼          ▼
-           router     ticket     qa/recommend
-         (意图分类)  (子图)      (节点)
+           ticket       qa      recommend
+         (工单子图)   (咨询子图)   (推荐子图)
               │
     ┌─────ticket─────┐    ┌──qa──┐  ┌──recommend──┐
     │ guard → plan   │    │ RAG  │  │ guard →     │
@@ -29,10 +29,10 @@
     │  → reflect     │    │ 回答 │  │  recommend   │
     │  → finalize    │    └──────┘  └──────────────┘
     └────────────────┘
-         │
-    post_process (后台异步)
-    ├─ service_summary (ollama)
-    └─ user_facts (deepseek)
+                            │
+                    post_process (后台异步)
+                    ├─ service_summary (ollama)
+                    └─ user_facts (deepseek)
 ```
 
 主图负责意图路由和中断恢复。三个子图分别为[工单模块](https://github.com/bonnie2015/i-member/issues/3)、[推荐模块](https://github.com/bonnie2015/i-member/issues/9)、[咨询模块](https://github.com/bonnie2015/i-member/issues/3)。工单模块是最复杂的部分，五节点状态机 + 独立 interrupt 节点实现完整闭环。所有状态通过 Redis checkpoint 持久化。
@@ -69,7 +69,7 @@ LangGraph · LangChain · FastAPI · Redis · Qdrant · DeepSeek API · Ollama (
 
 ## 工程设计
 
-> [完整版](./docs/ENGINEERING.md)
+> \[详见\](./docs/ENGINEERING.md)
 
 ### 上下文管理
 
@@ -120,3 +120,5 @@ LangGraph · LangChain · FastAPI · Redis · Qdrant · DeepSeek API · Ollama (
 **5. Mock 数据**
 
 准备测试用户、订单、商品、工单的模拟数据集，供本地开发和效果展示使用。
+
+> 🚧 **待完成**：回归测试 + CI/CD、LangSmith 链路追踪截图（面试前）
