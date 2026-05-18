@@ -7,6 +7,7 @@
 docs/*
 !docs/ENGINEERING.md
 !docs/DISCLAIMER.md
+!docs/architecture-*.jpg
 
 # 品牌业务文件 — 品牌方按 .example 模板自行提供
 backend/app/tools/business/*.py
