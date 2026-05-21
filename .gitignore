@@ -66,3 +66,6 @@ backend/app/run_*_cases.py
 backend/app/scripts/*sampling*.json
 tmp_*case*.json
 .agents/
+CLAUDE.md
+AGENTS.md
+backend/AGENTS.md
