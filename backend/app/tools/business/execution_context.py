@@ -8,7 +8,9 @@ from app.config.logging import get_logger
 
 _logger = get_logger("execution_context")
 
-REQUEST_ACCESS_TOKEN_CTX: ContextVar[Optional[str]] = ContextVar("access_token", default=None)
+REQUEST_ACCESS_TOKEN_CTX: ContextVar[Optional[str]] = ContextVar(
+    "access_token", default=None
+)
 REQUEST_USER_ID_CTX: ContextVar[Optional[str]] = ContextVar("user_id", default=None)
 REQUEST_THREAD_ID_CTX: ContextVar[Optional[str]] = ContextVar("thread_id", default=None)
 
@@ -18,7 +20,9 @@ _interaction_sources_by_thread: Dict[str, list[Dict[str, Any]]] = {}
 
 
 @contextmanager
-def business_execution_context(*, thread_id: str | None = None, user_id: str | None = None) -> Iterator[None]:
+def business_execution_context(
+    *, thread_id: str | None = None, user_id: str | None = None
+) -> Iterator[None]:
     thread_token = REQUEST_THREAD_ID_CTX.set(str(thread_id or "").strip() or None)
     user_token = REQUEST_USER_ID_CTX.set(str(user_id or "").strip() or None)
     try:
@@ -36,11 +40,15 @@ def get_business_execution_context() -> Dict[str, str]:
 
 
 @contextmanager
-def ticket_interaction_source_context(*, sources: list[Dict[str, Any]] | None = None) -> Iterator[None]:
+def ticket_interaction_source_context(
+    *, sources: list[Dict[str, Any]] | None = None
+) -> Iterator[None]:
     """初始化并清理当前 thread 的交互源数据。"""
     thread_id = get_business_execution_context().get("thread_id", "unknown")
     if sources:
-        _interaction_sources_by_thread[thread_id] = [item for item in sources if isinstance(item, dict)]
+        _interaction_sources_by_thread[thread_id] = [
+            item for item in sources if isinstance(item, dict)
+        ]
     else:
         _interaction_sources_by_thread[thread_id] = []
     try:

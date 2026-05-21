@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-import json
 from typing import Any, Dict, List
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from app.agents.ticket.plan_agent import ticket_plan_agent
 from app.agents.base import AgentInput, AgentStatus
 from app.config.logging import get_logger
 from app.llm.llm_factory import get_llm
 from app.llm.runtime import invoke_with_usage_logging
-from app.prompts.prompt_builder import FinalReplyContext, build_ticket_final_reply_prompt
+from app.prompts.prompt_builder import (
+    FinalReplyContext,
+    build_ticket_final_reply_prompt,
+)
 from app.workflow.state import AgentState
 
 logger = get_logger("ticket_plan_node")
@@ -48,13 +50,18 @@ async def _generate_final_reply(
             provider="deepseek",
             timeout_seconds=30,
         )
-        return str(getattr(response, "content", "") or "").strip() or "当前工单服务已结束。"
+        return (
+            str(getattr(response, "content", "") or "").strip()
+            or "当前工单服务已结束。"
+        )
     except Exception as exc:
         logger.warning("[plan_node] final_reply_gen_failed: %s", exc)
         return "当前工单服务已结束。"
 
 
-def _build_steps(previous_steps: List[Dict], current_index: int, new_steps: List[Dict]) -> List[Dict]:
+def _build_steps(
+    previous_steps: List[Dict], current_index: int, new_steps: List[Dict]
+) -> List[Dict]:
     result = []
     for step in new_steps:
         if not isinstance(step, dict):
@@ -92,24 +99,33 @@ async def plan_node(state: AgentState) -> Dict[str, Any]:
         if fs.get("step_status") in ("failed", "pending"):
             failed_step = fs
 
-    logger.info("[plan_node] thread_id=%s service_key=%s step_index=%s replan=%s",
-                thread_id, service_key, current_step_index, state.get("replan_count", 0))
+    logger.info(
+        "[plan_node] thread_id=%s service_key=%s step_index=%s replan=%s",
+        thread_id,
+        service_key,
+        current_step_index,
+        state.get("replan_count", 0),
+    )
 
-    result = await ticket_plan_agent.run(AgentInput(
-        user_query=str(state.get("goal") or "").strip(),
-        thread_id=thread_id,
-        user_id=state.get("user_id"),
-        extra={
-            "service_key": service_key,
-            "goal": str(state.get("goal") or "").strip(),
-            "current_step_index": current_step_index,
-            "slots": existing_slots,
-            "failed_step": failed_step,
-        },
-    ))
+    result = await ticket_plan_agent.run(
+        AgentInput(
+            user_query=str(state.get("goal") or "").strip(),
+            thread_id=thread_id,
+            user_id=state.get("user_id"),
+            extra={
+                "service_key": service_key,
+                "goal": str(state.get("goal") or "").strip(),
+                "current_step_index": current_step_index,
+                "slots": existing_slots,
+                "failed_step": failed_step,
+            },
+        )
+    )
 
     if result.status != AgentStatus.SUCCESS:
-        logger.error("[plan_node] thread_id=%s agent_failed status=%s", thread_id, result.status)
+        logger.error(
+            "[plan_node] thread_id=%s agent_failed status=%s", thread_id, result.status
+        )
         final_reply = "当前服务暂时无法处理，请稍后再试。"
         return {
             "final_reply": final_reply,
@@ -128,7 +144,11 @@ async def plan_node(state: AgentState) -> Dict[str, Any]:
 
     logger.info(
         "[plan_node] thread_id=%s steps=%s expected_slots=%s pre_filled=%s reason=%s",
-        thread_id, len(steps), len(expected_slots), len(pre_filled_slots), reason or "none",
+        thread_id,
+        len(steps),
+        len(expected_slots),
+        len(pre_filled_slots),
+        reason or "none",
     )
 
     if not steps:

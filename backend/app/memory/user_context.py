@@ -27,7 +27,9 @@ async def _load_user_facts(user_id: str) -> list[str]:
     return [str(item).strip() for item in raw_facts or [] if str(item).strip()]
 
 
-async def load_user_context(user_id: str, thread_id: Optional[str] = None) -> Dict[str, Any]:
+async def load_user_context(
+    user_id: str, thread_id: Optional[str] = None
+) -> Dict[str, Any]:
     profile_summary, user_facts = await asyncio.gather(
         _load_profile_summary(user_id),
         _load_user_facts(user_id),

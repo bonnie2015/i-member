@@ -99,7 +99,7 @@ def _extract_json_object(text: str) -> str:
     start = text.find("{")
     end = text.rfind("}")
     if start >= 0 and end > start:
-        return text[start: end + 1]
+        return text[start : end + 1]
     return text
 
 
@@ -111,7 +111,14 @@ def _load_selected_skill_content(service_key: str) -> str:
 
 
 def _tool_registry() -> Dict[str, BaseTool]:
-    return {str(tool.name): tool for tool in [*get_scrm_tools(), onitsuka_get_product_detail, *get_memory_tools()]}
+    return {
+        str(tool.name): tool
+        for tool in [
+            *get_scrm_tools(),
+            onitsuka_get_product_detail,
+            *get_memory_tools(),
+        ]
+    }
 
 
 def _resolve_planner_tools(tool_names: List[str]) -> List[BaseTool]:
@@ -126,7 +133,6 @@ def _resolve_planner_tools(tool_names: List[str]) -> List[BaseTool]:
 
 
 class TicketPlanAgent(BaseAgent):
-
     def __init__(self):
         config = AgentConfig(
             name="ticket_plan",
@@ -146,7 +152,11 @@ class TicketPlanAgent(BaseAgent):
 
         skill_meta = load_skill_metadata(service_key, group="ticket")
         selected_skill_content = _load_selected_skill_content(service_key)
-        available_tool_names = [str(item).strip() for item in skill_meta.get("available_tools") or [] if str(item).strip()]
+        available_tool_names = [
+            str(item).strip()
+            for item in skill_meta.get("available_tools") or []
+            if str(item).strip()
+        ]
         tools = [*_resolve_planner_tools(available_tool_names), *get_memory_tools()]
         valid_tool_names = {str(t.name) for t in tools}
 
@@ -160,7 +170,9 @@ class TicketPlanAgent(BaseAgent):
                 current_goal=goal,
                 current_step_index=current_step_index,
                 slots=existing_slots,
-                failed_step=failed_step if failed_step.get("step_status") in ("failed", "pending") else None,
+                failed_step=failed_step
+                if failed_step.get("step_status") in ("failed", "pending")
+                else None,
             ),
         )
 
@@ -170,7 +182,10 @@ class TicketPlanAgent(BaseAgent):
 
         response, _ = await invoke_with_usage_logging(
             llm=llm,
-            messages=[SystemMessage(content=prompt), HumanMessage(content=input.user_query)],
+            messages=[
+                SystemMessage(content=prompt),
+                HumanMessage(content=input.user_query),
+            ],
             node="ticket_plan",
             thread_id=input.thread_id,
             user_id=input.user_id,
@@ -178,12 +193,18 @@ class TicketPlanAgent(BaseAgent):
             timeout_seconds=_PLAN_TIMEOUT_SECONDS,
         )
 
-        payload = json.loads(_extract_json_object(_extract_text_content(getattr(response, "content", ""))))
+        payload = json.loads(
+            _extract_json_object(
+                _extract_text_content(getattr(response, "content", ""))
+            )
+        )
         plan = TicketPlan.model_validate(payload)
 
         # 过滤无效工具名
         for step in plan.steps:
-            step.available_tools = [t for t in step.available_tools if t in valid_tool_names]
+            step.available_tools = [
+                t for t in step.available_tools if t in valid_tool_names
+            ]
 
         plan_data = plan.model_dump()
         reason = str(plan_data.get("reason") or "").strip()

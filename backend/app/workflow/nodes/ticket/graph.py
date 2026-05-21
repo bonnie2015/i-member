@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, StateGraph
@@ -10,7 +9,10 @@ from app.config.logging import get_logger
 from app.llm.llm_factory import get_llm
 from app.llm.runtime import invoke_with_usage_logging
 from app.models.interaction import TicketInteractionDetail, build_interaction_payload
-from app.prompts.prompt_builder import FinalReplyContext, build_ticket_final_reply_prompt
+from app.prompts.prompt_builder import (
+    FinalReplyContext,
+    build_ticket_final_reply_prompt,
+)
 from app.workflow.nodes.ticket.guard import guard_node
 from app.workflow.nodes.ticket.executor import executor_node
 from app.workflow.nodes.ticket.planner import plan_node
@@ -49,7 +51,11 @@ def _route_after_executor(state: AgentState) -> str:
         tp = list(step.get("try_process") or [])
         if tp:
             last = tp[-1]
-            if last.get("tool") == "ask_user" and "args" in last and "result" not in last:
+            if (
+                last.get("tool") == "ask_user"
+                and "args" in last
+                and "result" not in last
+            ):
                 return "executor_interrupt"
     return "reflect"
 
@@ -62,12 +68,18 @@ async def executor_interrupt_node(state: AgentState) -> dict:
     tp = list(step.get("try_process") or [])
     payload = tp[-1].get("interrupt_payload", {"reply": "请继续"})
 
-    logger.info("[executor_interrupt] thread_id=%s reply=%s",
-                state.get("thread_id"), str(payload.get("reply") or "")[:60])
+    logger.info(
+        "[executor_interrupt] thread_id=%s reply=%s",
+        state.get("thread_id"),
+        str(payload.get("reply") or "")[:60],
+    )
     answer = graph_interrupt(payload)
     answer_text = str(answer or "").strip()
-    logger.info("[executor_interrupt] thread_id=%s resumed answer=%s",
-                state.get("thread_id"), answer_text[:60])
+    logger.info(
+        "[executor_interrupt] thread_id=%s resumed answer=%s",
+        state.get("thread_id"),
+        answer_text[:60],
+    )
 
     tp.append({"tool": "ask_user", "result": answer_text})
     step["try_process"] = tp
@@ -92,7 +104,10 @@ def reflect_node(state: AgentState) -> dict:
 
     logger.info(
         "[ticket_reflect] step=%s/%s status=%s replan=%s",
-        current_step_index + 1, len(steps), step_status, replan_count,
+        current_step_index + 1,
+        len(steps),
+        step_status,
+        replan_count,
     )
 
     if step_status == "done":
@@ -109,7 +124,10 @@ def reflect_node(state: AgentState) -> dict:
     # pending / failed
     if replan_count < _MAX_REPLAN:
         logger.info("[ticket_reflect] → replan (plan), reason=%s", reason[:60])
-        return {"replan_count": replan_count + 1, "replan_reason": reason or "need_replan"}
+        return {
+            "replan_count": replan_count + 1,
+            "replan_reason": reason or "need_replan",
+        }
 
     logger.info("[ticket_reflect] → finalize (replan limit)")
     return {"final_status": "failed", "final_reason": reason or "replan_limit_reached"}
@@ -144,7 +162,10 @@ async def _generate_final_reply(state: AgentState) -> str:
             provider="deepseek",
             timeout_seconds=30,
         )
-        return str(getattr(response, "content", "") or "").strip() or "当前工单服务已结束。"
+        return (
+            str(getattr(response, "content", "") or "").strip()
+            or "当前工单服务已结束。"
+        )
     except Exception as exc:
         logger.warning("[ticket_finalize] final_reply_gen_failed: %s", exc)
         return "当前工单服务已结束。"
@@ -181,22 +202,33 @@ def _build_ticket_interaction(state: AgentState) -> dict | None:
     steps = list(state.get("steps") or [])
     for step in reversed(steps):
         tp = list(step.get("try_process") or [])
-        logger.info("[ticket_finalize] _build_ticket_interaction checking step try_process_len=%s", len(tp))
+        logger.info(
+            "[ticket_finalize] _build_ticket_interaction checking step try_process_len=%s",
+            len(tp),
+        )
         for i in range(len(tp) - 1, -1, -1):
             entry = tp[i]
             if entry.get("tool") == "create_ticket" and "result" in entry:
                 result = entry["result"]
                 if not isinstance(result, dict):
                     continue
-                ticket_id = str(result.get("ticket_id") or result.get("id") or "").strip()
+                ticket_id = str(
+                    result.get("ticket_id") or result.get("id") or ""
+                ).strip()
                 if not ticket_id:
                     continue
                 ticket_detail = TicketInteractionDetail(
                     ticket_id=ticket_id,
-                    ticket_title=str(result.get("ticket_title") or result.get("title") or "").strip(),
+                    ticket_title=str(
+                        result.get("ticket_title") or result.get("title") or ""
+                    ).strip(),
                     ticket_type=str(result.get("ticket_type") or "").strip(),
                     ticket_status=str(result.get("ticket_status") or "").strip(),
-                    ticket_status_label=str(result.get("ticket_status_label") or result.get("status_label") or "").strip(),
+                    ticket_status_label=str(
+                        result.get("ticket_status_label")
+                        or result.get("status_label")
+                        or ""
+                    ).strip(),
                 )
                 payload = build_interaction_payload(
                     interaction_type="confirm_ticket",

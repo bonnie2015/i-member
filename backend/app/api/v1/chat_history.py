@@ -32,7 +32,9 @@ def _normalize_message(message: Dict[str, Any]) -> Dict[str, Any] | None:
         return None
 
     content = str(message.get("content") or "").strip()
-    products = [item for item in list(message.get("products") or []) if isinstance(item, dict)]
+    products = [
+        item for item in list(message.get("products") or []) if isinstance(item, dict)
+    ]
     interaction = message.get("interaction")
     if interaction is not None and not isinstance(interaction, dict):
         interaction = None
@@ -66,7 +68,9 @@ async def load_last_chat_thread(user_id: str) -> str | None:
         return None
 
 
-async def append_chat_message(user_id: str, thread_id: str, message: Dict[str, Any]) -> None:
+async def append_chat_message(
+    user_id: str, thread_id: str, message: Dict[str, Any]
+) -> None:
     redis = await get_optional_redis_client()
     if not redis:
         return
@@ -80,12 +84,18 @@ async def append_chat_message(user_id: str, thread_id: str, message: Dict[str, A
         await redis.rpush(key, json.dumps(payload, ensure_ascii=False))
         await redis.ltrim(key, -_CHAT_HISTORY_KEEP, -1)
         await redis.expire(key, _CHAT_TTL_SECONDS)
-        await redis.set(_last_thread_key(normalized_user_id), normalized_thread_id, ex=_CHAT_TTL_SECONDS)
+        await redis.set(
+            _last_thread_key(normalized_user_id),
+            normalized_thread_id,
+            ex=_CHAT_TTL_SECONDS,
+        )
     except Exception as e:
         logger.warning("[chat_history] append message failed: %s", e)
 
 
-async def load_chat_messages(user_id: str, thread_id: str, limit: int = _CHAT_HISTORY_KEEP) -> List[Dict[str, Any]]:
+async def load_chat_messages(
+    user_id: str, thread_id: str, limit: int = _CHAT_HISTORY_KEEP
+) -> List[Dict[str, Any]]:
     redis = await get_optional_redis_client()
     if not redis:
         return []
@@ -95,7 +105,11 @@ async def load_chat_messages(user_id: str, thread_id: str, limit: int = _CHAT_HI
         return []
     normalized_limit = max(min(int(limit or _CHAT_HISTORY_KEEP), _CHAT_HISTORY_KEEP), 1)
     try:
-        raw_items = await redis.lrange(_messages_key(normalized_user_id, normalized_thread_id), -normalized_limit, -1)
+        raw_items = await redis.lrange(
+            _messages_key(normalized_user_id, normalized_thread_id),
+            -normalized_limit,
+            -1,
+        )
     except Exception as e:
         logger.warning("[chat_history] load messages failed: %s", e)
         return []

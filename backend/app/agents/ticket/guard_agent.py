@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import List, Literal, Optional
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
@@ -9,7 +9,10 @@ from app.agents.base import AgentConfig, AgentInput, AgentOutput, AgentStatus, B
 from app.config.logging import get_logger
 from app.llm.llm_factory import get_llm
 from app.llm.runtime import invoke_with_usage_logging
-from app.prompts.prompt_builder import PromptCapabilityContext, build_ticket_guard_system_prompt
+from app.prompts.prompt_builder import (
+    PromptCapabilityContext,
+    build_ticket_guard_system_prompt,
+)
 from app.skills.registry import load_skill_context
 
 logger = get_logger("ticket_guard_agent")
@@ -26,7 +29,6 @@ class GuardOutput(BaseModel):
 
 
 class TicketGuardAgent(BaseAgent):
-
     def __init__(self):
         config = AgentConfig(
             name="ticket_guard",
@@ -41,9 +43,14 @@ class TicketGuardAgent(BaseAgent):
     async def _execute(self, input: AgentInput) -> AgentOutput:
         messages: List[BaseMessage] = list(input.messages or [])
         # 只取最近两轮（4条消息）
-        messages = messages[-_RECENT_DIALOG_LIMIT:] if len(messages) > _RECENT_DIALOG_LIMIT else messages
+        messages = (
+            messages[-_RECENT_DIALOG_LIMIT:]
+            if len(messages) > _RECENT_DIALOG_LIMIT
+            else messages
+        )
         messages = [
-            msg for msg in messages
+            msg
+            for msg in messages
             if isinstance(msg, (HumanMessage, AIMessage))
             and str(getattr(msg, "content", "") or "").strip()
         ]
@@ -63,7 +70,11 @@ class TicketGuardAgent(BaseAgent):
             *messages,
         ]
 
-        logger.info("[ticket_guard_agent] thread_id=%s dialog_count=%s", input.thread_id, len(messages))
+        logger.info(
+            "[ticket_guard_agent] thread_id=%s dialog_count=%s",
+            input.thread_id,
+            len(messages),
+        )
 
         response: GuardOutput = (
             await invoke_with_usage_logging(

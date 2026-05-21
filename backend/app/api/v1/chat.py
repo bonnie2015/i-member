@@ -4,9 +4,18 @@ from app.api.v1.chat_history import (
     load_chat_messages,
     load_last_chat_thread,
 )
-from app.models.chat import ChatMessageRecord, ChatRequest, ChatResponse, LatestThreadResponse
+from app.models.chat import (
+    ChatMessageRecord,
+    ChatRequest,
+    ChatResponse,
+    LatestThreadResponse,
+)
 from app.security.jwt_auth import AuthContext, get_auth_context
-from app.tools.business.execution_context import REQUEST_ACCESS_TOKEN_CTX, REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
+from app.tools.business.execution_context import (
+    REQUEST_ACCESS_TOKEN_CTX,
+    REQUEST_THREAD_ID_CTX,
+    REQUEST_USER_ID_CTX,
+)
 from app.workflow.graph import (
     get_thread_owner_user_id,
     invoke_member_ops,
@@ -22,11 +31,17 @@ def _parse_history_message(raw_message: dict) -> ChatMessageRecord | None:
         return None
 
     content = str(raw_message.get("content") or "").strip()
-    products = [item for item in list(raw_message.get("products") or []) if isinstance(item, dict)]
+    products = [
+        item
+        for item in list(raw_message.get("products") or [])
+        if isinstance(item, dict)
+    ]
     interaction = raw_message.get("interaction")
     if not content and not products and interaction is None:
         return None
-    return ChatMessageRecord(role=role, content=content, products=products, interaction=interaction)
+    return ChatMessageRecord(
+        role=role, content=content, products=products, interaction=interaction
+    )
 
 
 @router.get("/chat/latest-thread", response_model=LatestThreadResponse)
@@ -87,8 +102,12 @@ async def chat(
             {
                 "role": "assistant",
                 "content": response.reply,
-                "interaction": response.interaction.model_dump(mode="json") if response.interaction else None,
-                "products": [item.model_dump(mode="json") for item in response.products],
+                "interaction": response.interaction.model_dump(mode="json")
+                if response.interaction
+                else None,
+                "products": [
+                    item.model_dump(mode="json") for item in response.products
+                ],
             },
         )
         return response

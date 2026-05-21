@@ -9,7 +9,11 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.config.logging import get_logger
 from app.models.interaction import InteractionPayload
-from app.workflow.state import AgentState, extract_last_service_round, get_service_clear_state
+from app.workflow.state import (
+    AgentState,
+    extract_last_service_round,
+    get_service_clear_state,
+)
 from app.workflow.nodes.post_process.post_process import (
     spawn_post_process_tasks,
 )
@@ -22,7 +26,9 @@ logger = get_logger("workflow")
 workflow = None  # 由 lifespan 初始化
 _LANGGRAPH_RECURSION_REPLY = "Sorry, need more steps to process this request."
 _GRAPH_FALLBACK_HAS_PRODUCT_REPLY = "找到了这几款，看看有没有喜欢的？"
-_GRAPH_FALLBACK_WITHOUT_PRODUCT_REPLY = "暂时没有找到合适的商品，能不能提供更多信息让我帮你找找看？"
+_GRAPH_FALLBACK_WITHOUT_PRODUCT_REPLY = (
+    "暂时没有找到合适的商品，能不能提供更多信息让我帮你找找看？"
+)
 
 
 class _InterruptPayload(BaseModel):
@@ -45,7 +51,9 @@ async def get_thread_owner_user_id(thread_id: str) -> str | None:
         return None
 
     try:
-        saved_state = await wf.aget_state({"configurable": {"thread_id": normalized_thread_id}})
+        saved_state = await wf.aget_state(
+            {"configurable": {"thread_id": normalized_thread_id}}
+        )
     except Exception as e:
         logger.warning("[workflow] get_thread_owner failed: %s", e)
         return None
@@ -119,7 +127,9 @@ def _extract_last_direct_ai_reply(messages: List[Any]) -> str:
     return ""
 
 
-async def _clear_finished_service_state(wf: Any, config: Dict[str, Any], state: Dict[str, Any]) -> None:
+async def _clear_finished_service_state(
+    wf: Any, config: Dict[str, Any], state: Dict[str, Any]
+) -> None:
     current = state.get("current_subgraph")
     if current:
         logger.info("[workflow] clear_state_skipped current_subgraph=%s", current)
@@ -130,7 +140,10 @@ async def _clear_finished_service_state(wf: Any, config: Dict[str, Any], state: 
         # 保留已完成服务的最后一轮对话，与 router QA→others 一致
         updates["messages"] = extract_last_service_round(all_messages)
         await wf.aupdate_state(config, updates)
-        logger.info("[workflow] clear_state_done thread_id=%s", config.get("configurable", {}).get("thread_id"))
+        logger.info(
+            "[workflow] clear_state_done thread_id=%s",
+            config.get("configurable", {}).get("thread_id"),
+        )
     except Exception as e:
         logger.warning("[workflow] clear_finished_service_state failed: %s", e)
 
@@ -168,7 +181,10 @@ async def _build_invoke_input(
         update_payload: Dict[str, Any] = {}
         interrupt_trace = list((interrupt_payload or {}).get("trace") or [])
         if interrupt_trace:
-            update_payload["trace"] = [*list(saved_values.get("trace") or []), *interrupt_trace]
+            update_payload["trace"] = [
+                *list(saved_values.get("trace") or []),
+                *interrupt_trace,
+            ]
         return Command(
             update=update_payload,
             resume=user_message,
@@ -186,7 +202,10 @@ async def _build_invoke_input(
         "user_id": user_id,
         "thread_id": thread_id,
         "channel": channel,
-        "messages": [*saved_values.get("messages", []), HumanMessage(content=user_message)],
+        "messages": [
+            *saved_values.get("messages", []),
+            HumanMessage(content=user_message),
+        ],
         "user_context": user_context,
     }
 
@@ -291,9 +310,13 @@ async def invoke_member_ops(
     service_state = (result or {}).get("service_state") or {}
     products = list(service_state.get("recommended_products") or [])
     if reply == _LANGGRAPH_RECURSION_REPLY:
-        messages = list((result or {}).get("messages") or saved_values.get("messages") or [])
+        messages = list(
+            (result or {}).get("messages") or saved_values.get("messages") or []
+        )
         reply = _extract_last_direct_ai_reply(messages) or (
-            _GRAPH_FALLBACK_HAS_PRODUCT_REPLY if products else _GRAPH_FALLBACK_WITHOUT_PRODUCT_REPLY
+            _GRAPH_FALLBACK_HAS_PRODUCT_REPLY
+            if products
+            else _GRAPH_FALLBACK_WITHOUT_PRODUCT_REPLY
         )
     state_snapshot = dict(result)
     service_finished = not str(state_snapshot.get("current_subgraph") or "").strip()

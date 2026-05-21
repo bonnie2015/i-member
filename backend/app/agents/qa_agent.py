@@ -4,7 +4,6 @@ import asyncio
 from typing import Any, Dict, List
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
-from langgraph.errors import GraphRecursionError
 from langgraph.prebuilt import create_react_agent
 
 from app.agents.base import AgentConfig, AgentInput, AgentOutput, AgentStatus, BaseAgent
@@ -21,7 +20,9 @@ logger = get_logger("qa_agent")
 _MAX_TOOL_CALLS = 3
 _MAX_GRAPH_STEPS = 16
 _QA_TIMEOUT_SECONDS = 60
-_FALLBACK_REPLY = "我先帮您确认一下相关信息，您也可以把问题再说具体一点，我继续为您处理。"
+_FALLBACK_REPLY = (
+    "我先帮您确认一下相关信息，您也可以把问题再说具体一点，我继续为您处理。"
+)
 
 
 def _message_text(content: Any) -> str:
@@ -50,6 +51,7 @@ def _extract_reply_result(messages: List[BaseMessage]) -> str | None:
             continue
         try:
             import json
+
             parsed = json.loads(content)
             if isinstance(parsed, dict):
                 reply = str(parsed.get("reply") or "").strip()
@@ -88,13 +90,17 @@ class QAAgent(BaseAgent):
         self.tools = [*get_memory_tools(), *get_rag_tools(), reply_to_user_tool]
         self._executor = None
 
-    def _get_executor(self, base_prompt: str, thread_id: str, user_id: str | None = None):
+    def _get_executor(
+        self, base_prompt: str, thread_id: str, user_id: str | None = None
+    ):
         tools = self.tools
 
         def _model_fn(state: Dict[str, Any], runtime: Any) -> Any:
             msgs = list(state.get("messages") or [])
             count = sum(1 for m in msgs if isinstance(m, ToolMessage))
-            available_tools = [reply_to_user_tool] if count >= _MAX_TOOL_CALLS else tools
+            available_tools = (
+                [reply_to_user_tool] if count >= _MAX_TOOL_CALLS else tools
+            )
             model = get_llm("qa").bind_tools(available_tools, tool_choice="required")
             return with_usage_logging(
                 model,
@@ -110,14 +116,17 @@ class QAAgent(BaseAgent):
             if count < _MAX_TOOL_CALLS:
                 return {}
             from langchain_core.messages import SystemMessage
+
             return {
                 "llm_input_messages": [
                     *msgs,
-                    SystemMessage(content=(
-                        f"已达到工具调用上限（{count} 次），不要再尝试调用任何检索工具。"
-                        "如果已有检索结果中包含相关信息，就用检索结果回答。"
-                        "如果检索结果为空或不相关，直接告知用户未找到相关政策信息，请用户提供更具体的问题。"
-                    )),
+                    SystemMessage(
+                        content=(
+                            f"已达到工具调用上限（{count} 次），不要再尝试调用任何检索工具。"
+                            "如果已有检索结果中包含相关信息，就用检索结果回答。"
+                            "如果检索结果为空或不相关，直接告知用户未找到相关政策信息，请用户提供更具体的问题。"
+                        )
+                    ),
                 ]
             }
 
@@ -138,7 +147,11 @@ class QAAgent(BaseAgent):
 
         logger.info("[qa_agent] thread_id=%s invoke_agent", input.thread_id)
 
-        initial_messages = list(input.messages) if input.messages else [HumanMessage(content=input.user_query)]
+        initial_messages = (
+            list(input.messages)
+            if input.messages
+            else [HumanMessage(content=input.user_query)]
+        )
         agent_result = await asyncio.wait_for(
             executor.ainvoke(
                 {"messages": initial_messages},
@@ -154,7 +167,11 @@ class QAAgent(BaseAgent):
         if not reply:
             reply = _FALLBACK_REPLY
 
-        logger.info("[qa_agent] thread_id=%s completed reply_length=%s", input.thread_id, len(reply))
+        logger.info(
+            "[qa_agent] thread_id=%s completed reply_length=%s",
+            input.thread_id,
+            len(reply),
+        )
         return AgentOutput(
             reply=reply,
             status=AgentStatus.SUCCESS,

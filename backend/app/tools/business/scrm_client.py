@@ -7,7 +7,10 @@ from app.config.config import settings
 from app.config.logging import get_logger
 from app.config.redis import get_redis_client
 from app.config.redis_keys import SCRM_RATE_LIMIT_KEY
-from app.tools.business.execution_context import REQUEST_ACCESS_TOKEN_CTX, REQUEST_USER_ID_CTX
+from app.tools.business.execution_context import (
+    REQUEST_ACCESS_TOKEN_CTX,
+    REQUEST_USER_ID_CTX,
+)
 
 logger = get_logger("scrm_client")
 _SCRM_RATE_LIMIT_PER_MIN = 30
@@ -41,7 +44,9 @@ async def _check_rate_limit() -> None:
 
     user_id = str(REQUEST_USER_ID_CTX.get() or "").strip()
     if not user_id:
-        logger.warning("[scrm_client] missing user_id in request context, skip rate limit")
+        logger.warning(
+            "[scrm_client] missing user_id in request context, skip rate limit"
+        )
         return
 
     client = await get_redis_client()
@@ -53,7 +58,9 @@ async def _check_rate_limit() -> None:
         raise httpx.HTTPStatusError(
             message=f"SCRM rate limit exceeded for user_id={user_id}",
             request=httpx.Request("RATE_LIMIT", "redis://scrm-rate-limit"),
-            response=httpx.Response(429, request=httpx.Request("RATE_LIMIT", "redis://scrm-rate-limit")),
+            response=httpx.Response(
+                429, request=httpx.Request("RATE_LIMIT", "redis://scrm-rate-limit")
+            ),
         )
 
 

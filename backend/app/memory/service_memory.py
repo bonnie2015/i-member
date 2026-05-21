@@ -73,7 +73,9 @@ async def save_service_memory(
         logger.warning(f"[service_memory] save failed: {e}")
 
 
-async def load_recent_service_memories(user_id: str, thread_id: str) -> List[Dict[str, Any]]:
+async def load_recent_service_memories(
+    user_id: str, thread_id: str
+) -> List[Dict[str, Any]]:
     redis = await get_optional_redis_client()
     if not redis:
         return []
@@ -105,5 +107,9 @@ async def load_recent_service_memories_limited(
     services = await load_recent_service_memories(user_id, thread_id)
     if not services:
         return []
-    filtered = [item for item in reversed(services) if isinstance(item, dict) and _matches_intent(item, intent)]
+    filtered = [
+        item
+        for item in reversed(services)
+        if isinstance(item, dict) and _matches_intent(item, intent)
+    ]
     return filtered[:limit]

@@ -189,12 +189,18 @@ def build_ticket_plan_runtime_context(
         "已有槽位": _serialize_runtime_value(payload.slots),
     }
     if payload.failed_step:
-        sections["上一步执行情况（失败/未完成，需重新规划这一步）"] = _serialize_runtime_value({
-            "goal": payload.failed_step.get("goal", ""),
-            "step_status": payload.failed_step.get("step_status", ""),
-            "failed_reason": payload.failed_step.get("failed_reason", ""),
-            "tool_calls_and_results": payload.failed_step.get("try_process", []),
-        })
+        sections["上一步执行情况（失败/未完成，需重新规划这一步）"] = (
+            _serialize_runtime_value(
+                {
+                    "goal": payload.failed_step.get("goal", ""),
+                    "step_status": payload.failed_step.get("step_status", ""),
+                    "failed_reason": payload.failed_step.get("failed_reason", ""),
+                    "tool_calls_and_results": payload.failed_step.get(
+                        "try_process", []
+                    ),
+                }
+            )
+        )
     rendered = format_context_sections(sections)
     return rendered or "[None]"
 
@@ -330,7 +336,9 @@ async def build_ticket_final_reply_prompt(
     *,
     context: FinalReplyContext,
 ) -> str:
-    context_text = json.dumps(context.model_dump(), ensure_ascii=False, indent=2, default=str)
+    context_text = json.dumps(
+        context.model_dump(), ensure_ascii=False, indent=2, default=str
+    )
     return build_base_system_prompt(
         prompt_file="ticket/final_reply.txt",
         context=context_text,

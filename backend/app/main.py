@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1 import chat
-from app.config.config import settings
 from app.config.logging import get_logger
 from app.config.redis import close_redis_client
 from app.skills.registry import build_all_skills_snapshots
@@ -22,6 +21,7 @@ async def lifespan(app: FastAPI):
     logger.info("Workflow initialized")
     # 启动：预热 RAG（加载 embedding 模型、tokenizer、连接 Qdrant）
     from app.tools.rag_tools import warmup_rag
+
     await warmup_rag()
     yield
     await close_redis_client()

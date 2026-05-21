@@ -7,7 +7,7 @@ UserFactsAgent — 用户画像事实提取。
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Sequence
 
 from app.agents.base import AgentConfig, AgentInput, AgentOutput, AgentStatus, BaseAgent
 from app.config.logging import get_logger

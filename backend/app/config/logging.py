@@ -1,7 +1,7 @@
 import logging
 import sys
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from zoneinfo import ZoneInfo

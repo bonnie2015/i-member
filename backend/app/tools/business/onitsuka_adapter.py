@@ -5,7 +5,9 @@ from typing import Any, Dict, List
 _MAX_PRODUCTS_FOR_LLM = 8
 _MAX_COLORS_FOR_LLM = 8
 _MAX_SIZES_FOR_LLM = 32
-_ONITSUKA_CN_PRODUCT_DETAIL_URL = "https://www.onitsukatiger.com/cn/zh-cn/detail/{product_id}-{color_id}"
+_ONITSUKA_CN_PRODUCT_DETAIL_URL = (
+    "https://www.onitsukatiger.com/cn/zh-cn/detail/{product_id}-{color_id}"
+)
 
 _product_default_color_cache: Dict[int, int] = {}
 
@@ -67,7 +69,9 @@ def summarize_product(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def visible_products(products: List[Dict[str, Any]], *, limit: int = _MAX_PRODUCTS_FOR_LLM) -> List[Dict[str, Any]]:
+def visible_products(
+    products: List[Dict[str, Any]], *, limit: int = _MAX_PRODUCTS_FOR_LLM
+) -> List[Dict[str, Any]]:
     visible: List[Dict[str, Any]] = []
     for item in list(products or [])[:limit]:
         visible.append(
@@ -104,7 +108,9 @@ def trim_colors(colors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return visible
 
 
-def trim_sizes(sizes: List[Dict[str, Any]], *, in_stock_only: bool = False) -> List[str]:
+def trim_sizes(
+    sizes: List[Dict[str, Any]], *, in_stock_only: bool = False
+) -> List[str]:
     source = list(sizes or [])
     if in_stock_only:
         source = [item for item in source if item.get("in_stock")]

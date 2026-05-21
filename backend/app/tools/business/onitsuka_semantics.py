@@ -70,8 +70,25 @@ BRAND_QUERY_ALIASES: Dict[str, List[str]] = {
     "漆皮": ["亮皮", "亮面皮", "patent"],
     "蕾丝": ["镂空花边", "lace", "透气", "花边"],
     "经典": ["经典款", "常青款", "基础经典", "不过时"],
-    "纯色": ["一个颜色", "统一颜色", "纯色调", "单色", "净色", "没有图案", "solid color"],
-    "简约": ["简单", "简单的", "不花哨", "干净", "干净利落", "基础款", "minimal", "minimalist"],
+    "纯色": [
+        "一个颜色",
+        "统一颜色",
+        "纯色调",
+        "单色",
+        "净色",
+        "没有图案",
+        "solid color",
+    ],
+    "简约": [
+        "简单",
+        "简单的",
+        "不花哨",
+        "干净",
+        "干净利落",
+        "基础款",
+        "minimal",
+        "minimalist",
+    ],
     "复古": ["怀旧", "老派", "vintage", "retro"],
     "法式": ["法式感", "法风", "french"],
     "度假": ["假日", "海边", "旅行感", "resort", "vacation"],
@@ -97,7 +114,16 @@ BRAND_QUERY_ALIASES: Dict[str, List[str]] = {
     "双排扣": ["double breasted", "double-breasted"],
     "防风": ["挡风", "windbreaker", "wind proof"],
     "铺棉": ["棉服感", "夹棉", "padded"],
-    "厚底": ["增高", "显高", "底高", "厚底的", "厚底款", "高底", "platform", "chunky sole"],
+    "厚底": [
+        "增高",
+        "显高",
+        "底高",
+        "厚底的",
+        "厚底款",
+        "高底",
+        "platform",
+        "chunky sole",
+    ],
 }
 
 GENDER_FILTER_IDS: Dict[str, str] = {
@@ -174,7 +200,11 @@ SIZE_FILTER_IDS: Dict[str, str] = {
 
 def normalize_sort(value: Optional[str], *, default: str = "") -> str:
     candidate = str(value or default or "").strip()
-    return candidate if candidate in {"", "new", "sales", "price:asc", "price:desc"} else default
+    return (
+        candidate
+        if candidate in {"", "new", "sales", "price:asc", "price:desc"}
+        else default
+    )
 
 
 def build_where_payload(

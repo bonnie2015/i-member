@@ -30,8 +30,15 @@ def _build_displayed_products(products: List[Dict[str, Any]]) -> List[Dict[str, 
     ):
         card: Dict[str, Any] = {"index": index}
         for key in (
-            "product_id", "color_id", "name", "price", "image",
-            "official_url", "color_name", "category", "gender",
+            "product_id",
+            "color_id",
+            "name",
+            "price",
+            "image",
+            "official_url",
+            "color_name",
+            "category",
+            "gender",
         ):
             value = product.get(key)
             if value is not None and value != "":
@@ -47,19 +54,23 @@ async def recommend_node(state: AgentState) -> Dict[str, Any]:
     service_state = state.get("service_state") or {}
     prev_recommend_context = service_state.get("recommend_context") or {}
 
-    logger.info("[recommend_node] thread_id=%s round=%s start", thread_id, len(trace) + 1)
+    logger.info(
+        "[recommend_node] thread_id=%s round=%s start", thread_id, len(trace) + 1
+    )
 
     # 1. guard：判断任务是否已完成，注入上轮的 recommend_context 和最新 trace
-    guard_result = await recommend_guard_agent.run(AgentInput(
-        user_context=state.get("user_context") or {},
-        thread_id=thread_id,
-        user_id=user_id,
-        messages=state.get("messages") or [],
-        extra={
-            "trace": trace[-1:] if trace else [],  # 只传最新一轮 trace
-            "recommend_context": prev_recommend_context,
-        },
-    ))
+    guard_result = await recommend_guard_agent.run(
+        AgentInput(
+            user_context=state.get("user_context") or {},
+            thread_id=thread_id,
+            user_id=user_id,
+            messages=state.get("messages") or [],
+            extra={
+                "trace": trace[-1:] if trace else [],  # 只传最新一轮 trace
+                "recommend_context": prev_recommend_context,
+            },
+        )
+    )
 
     guard_data = guard_result.data if guard_result.status == AgentStatus.SUCCESS else {}
     task_completed = bool(guard_data.get("task_completed"))
@@ -68,21 +79,29 @@ async def recommend_node(state: AgentState) -> Dict[str, Any]:
     round_num = len(trace) + 1
 
     if task_completed:
-        reply = str(guard_data.get("reply") or "").strip() or "好的，当前推荐服务已结束，有需要随时找我。"
-        logger.info("[recommend_node] thread_id=%s service_end reply=%s", thread_id, reply[:60])
+        reply = (
+            str(guard_data.get("reply") or "").strip()
+            or "好的，当前推荐服务已结束，有需要随时找我。"
+        )
+        logger.info(
+            "[recommend_node] thread_id=%s service_end reply=%s", thread_id, reply[:60]
+        )
         return {
             "final_reply": reply,
             "final_status": "success",
             "current_subgraph": None,
-            "trace": [*trace, {
-                "round": round_num,
-                "message_id": message_id,
-                "input_user_message": _last_user_message_text(state),
-                "output_ai_message": reply,
-                "displayed_products": [],
-                "summary": guard_data.get("summary", ""),
-                "anchor_products": guard_data.get("anchor_products", []),
-            }],
+            "trace": [
+                *trace,
+                {
+                    "round": round_num,
+                    "message_id": message_id,
+                    "input_user_message": _last_user_message_text(state),
+                    "output_ai_message": reply,
+                    "displayed_products": [],
+                    "summary": guard_data.get("summary", ""),
+                    "anchor_products": guard_data.get("anchor_products", []),
+                },
+            ],
             "messages": [*state["messages"], AIMessage(content=reply, id=message_id)],
             "service_state": None,
         }
@@ -95,13 +114,15 @@ async def recommend_node(state: AgentState) -> Dict[str, Any]:
     }
 
     with business_execution_context(thread_id=thread_id, user_id=user_id):
-        result = await recommend_agent.run(AgentInput(
-            user_context=state.get("user_context") or {},
-            thread_id=thread_id,
-            user_id=user_id,
-            messages=state.get("messages") or [],
-            extra={"recommend_context": recommend_context},
-        ))
+        result = await recommend_agent.run(
+            AgentInput(
+                user_context=state.get("user_context") or {},
+                thread_id=thread_id,
+                user_id=user_id,
+                messages=state.get("messages") or [],
+                extra={"recommend_context": recommend_context},
+            )
+        )
 
     products = result.data.get("products") or []
     displayed = _build_displayed_products(products)
@@ -122,7 +143,10 @@ async def recommend_node(state: AgentState) -> Dict[str, Any]:
         "final_reply": result.reply,
         "current_subgraph": "recommend",
         "trace": new_trace,
-        "messages": [*state["messages"], AIMessage(content=result.reply, id=message_id)],
+        "messages": [
+            *state["messages"],
+            AIMessage(content=result.reply, id=message_id),
+        ],
         "service_state": {
             "recommended_products": products,
             "recommend_context": recommend_context,

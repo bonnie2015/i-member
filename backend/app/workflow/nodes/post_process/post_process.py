@@ -57,7 +57,9 @@ async def _build_and_save_service_memory(
             user_id=user_id,
         )
     except Exception as e:
-        logger.warning("[post_process] thread_id=%s summary_failed error=%s", thread_id, e)
+        logger.warning(
+            "[post_process] thread_id=%s summary_failed error=%s", thread_id, e
+        )
         summary = f"{intent} 服务已结束。"
 
     service_memory = {
@@ -83,21 +85,28 @@ async def _extract_and_save_user_facts(
     thread_id: str,
     user_id: str,
 ) -> None:
-    await user_facts_agent.run(AgentInput(
-        user_query=user_id,
-        user_id=user_id,
-        thread_id=thread_id,
-        extra={"messages": messages},
-    ))
+    await user_facts_agent.run(
+        AgentInput(
+            user_query=user_id,
+            user_id=user_id,
+            thread_id=thread_id,
+            extra={"messages": messages},
+        )
+    )
 
 
-def _log_background_task_result(task: asyncio.Task[Any], *, task_name: str, thread_id: str, user_id: str) -> None:
+def _log_background_task_result(
+    task: asyncio.Task[Any], *, task_name: str, thread_id: str, user_id: str
+) -> None:
     try:
         task.result()
     except Exception as e:
         logger.warning(
             "[post_process] task=%s thread_id=%s user_id=%s failed error=%s",
-            task_name, thread_id, user_id, e,
+            task_name,
+            thread_id,
+            user_id,
+            e,
         )
 
 
@@ -115,7 +124,9 @@ def spawn_post_process_tasks(state: Dict[str, Any]) -> None:
         )
     )
     task1.add_done_callback(
-        lambda t: _log_background_task_result(t, task_name="service_memory", thread_id=thread_id, user_id=user_id)
+        lambda t: _log_background_task_result(
+            t, task_name="service_memory", thread_id=thread_id, user_id=user_id
+        )
     )
 
     task2 = asyncio.create_task(
@@ -126,5 +137,7 @@ def spawn_post_process_tasks(state: Dict[str, Any]) -> None:
         )
     )
     task2.add_done_callback(
-        lambda t: _log_background_task_result(t, task_name="user_facts", thread_id=thread_id, user_id=user_id)
+        lambda t: _log_background_task_result(
+            t, task_name="user_facts", thread_id=thread_id, user_id=user_id
+        )
     )

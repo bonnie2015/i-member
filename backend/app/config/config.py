@@ -1,8 +1,6 @@
-from typing import Literal, Optional, Dict, List
+from typing import Literal, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import BaseModel
-from pathlib import Path
-import json
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(

@@ -11,6 +11,7 @@ logger = get_logger("onitsuka_client")
 _ONITSUKA_V2_BASE_URL = "https://lumenapiprod.onitsukatiger.com/v2/api"
 _ONITSUKA_TIMEOUT_SECONDS = 10.0
 
+
 async def call_onitsuka_v2(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     url = f"{_ONITSUKA_V2_BASE_URL.rstrip('/')}/{path.lstrip('/')}"
     try:
@@ -24,7 +25,12 @@ async def call_onitsuka_v2(path: str, payload: Dict[str, Any]) -> Dict[str, Any]
             body = response.json()
     except httpx.HTTPStatusError as exc:
         status_code = exc.response.status_code if exc.response else None
-        logger.warning("[onitsuka_client] http error path=%s status=%s err=%s", path, status_code, exc)
+        logger.warning(
+            "[onitsuka_client] http error path=%s status=%s err=%s",
+            path,
+            status_code,
+            exc,
+        )
         return {
             "error": str(exc),
             "error_code": f"ONITSUKA_HTTP_{status_code or 'UNKNOWN'}",
@@ -39,7 +45,11 @@ async def call_onitsuka_v2(path: str, payload: Dict[str, Any]) -> Dict[str, Any]
         }
 
     if not isinstance(body, dict):
-        return {"error": "unexpected response type", "error_code": "ONITSUKA_BAD_RESPONSE", "path": path}
+        return {
+            "error": "unexpected response type",
+            "error_code": "ONITSUKA_BAD_RESPONSE",
+            "path": path,
+        }
 
     if body.get("status") is not True or body.get("code") != 1:
         return {

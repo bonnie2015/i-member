@@ -15,7 +15,9 @@ from app.workflow.state import AgentState
 logger = get_logger("qa_node")
 
 _MAX_QA_TOKENS = 2000
-_FALLBACK_REPLY = "我先帮您确认一下相关信息，您也可以把问题再说具体一点，我继续为您处理。"
+_FALLBACK_REPLY = (
+    "我先帮您确认一下相关信息，您也可以把问题再说具体一点，我继续为您处理。"
+)
 
 
 def _last_user_message(messages: List) -> str:
@@ -50,17 +52,27 @@ async def qa_node(state: AgentState) -> Dict[str, Any]:
         }
 
     # 用 token 估算代替固定轮数判断是否压缩
-    msg_text = json.dumps([{"role": type(m).__name__, "content": str(getattr(m, "content", ""))[:200]} for m in messages], ensure_ascii=False)
+    msg_text = json.dumps(
+        [
+            {"role": type(m).__name__, "content": str(getattr(m, "content", ""))[:200]}
+            for m in messages
+        ],
+        ensure_ascii=False,
+    )
     if estimate_tokens(msg_text) <= _MAX_QA_TOKENS:
-        result = await qa_agent.run(AgentInput(
-            user_query=current_query,
-            user_context=state.get("user_context") or {},
-            thread_id=thread_id,
-            user_id=user_id,
-            messages=messages,
-        ))
+        result = await qa_agent.run(
+            AgentInput(
+                user_query=current_query,
+                user_context=state.get("user_context") or {},
+                thread_id=thread_id,
+                user_id=user_id,
+                messages=messages,
+            )
+        )
         reply = result.reply or _FALLBACK_REPLY
-        logger.info("[qa_node] thread_id=%s end status=%s", thread_id, result.status.value)
+        logger.info(
+            "[qa_node] thread_id=%s end status=%s", thread_id, result.status.value
+        )
         return {
             "final_reply": reply,
             "messages": [*messages, AIMessage(content=reply)],
@@ -71,7 +83,9 @@ async def qa_node(state: AgentState) -> Dict[str, Any]:
     last_idx = max(i for i, m in enumerate(messages) if isinstance(m, HumanMessage))
     history = messages[:last_idx]
 
-    logger.info("[qa_node] thread_id=%s compress history_msgs=%s", thread_id, len(history))
+    logger.info(
+        "[qa_node] thread_id=%s compress history_msgs=%s", thread_id, len(history)
+    )
 
     summary = await summary_agent.compress_qa(
         old_messages=history,
@@ -82,16 +96,22 @@ async def qa_node(state: AgentState) -> Dict[str, Any]:
 
     summary_msg = HumanMessage(content=f"[历史对话摘要]\n{summary}")
     current_msg = HumanMessage(content=current_query)
-    result = await qa_agent.run(AgentInput(
-        user_query=current_query,
-        user_context=state.get("user_context") or {},
-        thread_id=thread_id,
-        user_id=user_id,
-        messages=[summary_msg, current_msg],
-    ))
+    result = await qa_agent.run(
+        AgentInput(
+            user_query=current_query,
+            user_context=state.get("user_context") or {},
+            thread_id=thread_id,
+            user_id=user_id,
+            messages=[summary_msg, current_msg],
+        )
+    )
 
     reply = result.reply or _FALLBACK_REPLY
-    logger.info("[qa_node] thread_id=%s end compressed status=%s", thread_id, result.status.value)
+    logger.info(
+        "[qa_node] thread_id=%s end compressed status=%s",
+        thread_id,
+        result.status.value,
+    )
 
     return {
         "final_reply": reply,

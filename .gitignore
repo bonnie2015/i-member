@@ -65,3 +65,4 @@ skills-snapshot.md
 backend/app/run_*_cases.py
 backend/app/scripts/*sampling*.json
 tmp_*case*.json
+.agents/

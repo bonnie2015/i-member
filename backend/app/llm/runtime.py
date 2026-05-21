@@ -100,7 +100,11 @@ def _unwrap_llm_and_kwargs(llm: Any) -> tuple[Any, dict[str, Any], str]:
 
     first = getattr(llm, "first", None)
     if first is not None and hasattr(first, "bound") and hasattr(first, "kwargs"):
-        return first.bound, dict(getattr(first, "kwargs", {}) or {}), llm.__class__.__name__
+        return (
+            first.bound,
+            dict(getattr(first, "kwargs", {}) or {}),
+            llm.__class__.__name__,
+        )
 
     return llm, {}, llm.__class__.__name__
 
@@ -154,7 +158,9 @@ def extract_usage(response: Any) -> dict[str, int]:
     if isinstance(usage, Mapping):
         prompt_tokens = _coerce_int(usage.get("input_tokens"))
         completion_tokens = _coerce_int(usage.get("output_tokens"))
-        total_tokens = _coerce_int(usage.get("total_tokens")) or (prompt_tokens + completion_tokens)
+        total_tokens = _coerce_int(usage.get("total_tokens")) or (
+            prompt_tokens + completion_tokens
+        )
         return {
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
@@ -169,7 +175,9 @@ def extract_usage(response: Any) -> dict[str, int]:
                 continue
             prompt_tokens = _coerce_int(usage_block.get("prompt_tokens"))
             completion_tokens = _coerce_int(usage_block.get("completion_tokens"))
-            total_tokens = _coerce_int(usage_block.get("total_tokens")) or (prompt_tokens + completion_tokens)
+            total_tokens = _coerce_int(usage_block.get("total_tokens")) or (
+                prompt_tokens + completion_tokens
+            )
             return {
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
@@ -206,12 +214,19 @@ async def invoke_with_usage_logging(
         "user_id": str(user_id or "").strip() or "unknown",
         **metrics,
     }
-    logger.info("[llm_runtime] %s", json.dumps({"event": "llm_call_start", **log_base}, ensure_ascii=False))
+    logger.info(
+        "[llm_runtime] %s",
+        json.dumps({"event": "llm_call_start", **log_base}, ensure_ascii=False),
+    )
 
     started = time.perf_counter()
     try:
         invoke_coro = llm.ainvoke(list(messages))
-        response = await asyncio.wait_for(invoke_coro, timeout=timeout_seconds) if timeout_seconds else await invoke_coro
+        response = (
+            await asyncio.wait_for(invoke_coro, timeout=timeout_seconds)
+            if timeout_seconds
+            else await invoke_coro
+        )
         usage = extract_usage(response)
         latency_ms = int((time.perf_counter() - started) * 1000)
         logger.info(
@@ -268,12 +283,19 @@ async def invoke_model_input_with_usage_logging(
         "user_id": str(user_id or "").strip() or "unknown",
         **metrics,
     }
-    logger.info("[llm_runtime] %s", json.dumps({"event": "llm_call_start", **log_base}, ensure_ascii=False))
+    logger.info(
+        "[llm_runtime] %s",
+        json.dumps({"event": "llm_call_start", **log_base}, ensure_ascii=False),
+    )
 
     started = time.perf_counter()
     try:
         invoke_coro = llm.ainvoke(model_input, config=config)
-        response = await asyncio.wait_for(invoke_coro, timeout=timeout_seconds) if timeout_seconds else await invoke_coro
+        response = (
+            await asyncio.wait_for(invoke_coro, timeout=timeout_seconds)
+            if timeout_seconds
+            else await invoke_coro
+        )
         usage = extract_usage(response)
         latency_ms = int((time.perf_counter() - started) * 1000)
         logger.info(
@@ -339,8 +361,9 @@ def with_usage_logging(
 
 # ---- token estimation ----
 
+
 def estimate_tokens(text: str) -> int:
     """DeepSeek 官方换算率估算 token 数。中文字符≈0.6, 英文字符≈0.3。"""
-    cn = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+    cn = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
     en = len(text) - cn
     return int(cn * 0.6 + en * 0.3)

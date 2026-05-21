@@ -7,14 +7,21 @@ from typing import Any, Dict, List, Literal, Optional, TypedDict, get_args
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
-from app.tools.business.execution_context import get_business_execution_context, push_ticket_interaction_source
+from app.tools.business.execution_context import (
+    get_business_execution_context,
+    push_ticket_interaction_source,
+)
 from app.tools.business.onitsuka_adapter import (
     adapt_product_detail,
     get_cached_default_color,
     summarize_product,
     visible_products,
 )
-from app.tools.business.onitsuka_client import get_product_detail, list_products, search_products
+from app.tools.business.onitsuka_client import (
+    get_product_detail,
+    list_products,
+    search_products,
+)
 from app.tools.business.onitsuka_semantics import (
     BRAND_QUERY_ALIASES,
     GENDER_FILTER_IDS,
@@ -51,7 +58,9 @@ ColorFilterValue = Literal[
     "黑色",
     "PALE BLUE/WHITE",
 ]
-PriceFilterValue = Literal["", "850-1150", "1150-1450", "1450-1750", "2050-2350", "3850-4150"]
+PriceFilterValue = Literal[
+    "", "850-1150", "1150-1450", "1450-1750", "2050-2350", "3850-4150"
+]
 CategoryValue = Literal[
     "",
     "鞋",
@@ -201,8 +210,13 @@ class SearchByIntentInput(BaseModel):
 
 
 class GetOnitsukaProductDetailInput(BaseModel):
-    product_id: int = Field(description="商品 ID。通常来自 onitsuka_search_products_hybrid 的返回结果。")
-    color_id: Optional[int] = Field(default=None, description="可选颜色 ID。若留空，工具会优先使用此前搜索结果缓存的默认颜色 ID。")
+    product_id: int = Field(
+        description="商品 ID。通常来自 onitsuka_search_products_hybrid 的返回结果。"
+    )
+    color_id: Optional[int] = Field(
+        default=None,
+        description="可选颜色 ID。若留空，工具会优先使用此前搜索结果缓存的默认颜色 ID。",
+    )
 
 
 def _dedupe_texts(values: Any) -> List[str]:
@@ -227,14 +241,18 @@ def _dedupe_texts(values: Any) -> List[str]:
 
 
 def _normalized_key(value: str) -> str:
-    return " ".join(str(value or "").strip().lower().replace("™", "").replace("-", " ").split())
+    return " ".join(
+        str(value or "").strip().lower().replace("™", "").replace("-", " ").split()
+    )
 
 
 def _is_brand_keyword(value: str) -> bool:
     return _normalized_key(value) in IGNORED_BRAND_KEYWORDS
 
 
-def _build_alias_index(alias_map: Dict[str, List[str]], *, namespace: str) -> AliasIndex:
+def _build_alias_index(
+    alias_map: Dict[str, List[str]], *, namespace: str
+) -> AliasIndex:
     exact: Dict[str, str] = {}
     contains: Dict[str, str] = {}
     for canonical, aliases in alias_map.items():
@@ -259,12 +277,18 @@ def _build_alias_index(alias_map: Dict[str, List[str]], *, namespace: str) -> Al
                 contains[alias_key] = canonical
 
     contains_keys = sorted(contains, key=lambda value: (-len(value), value))
-    pattern = re.compile("|".join(re.escape(value) for value in contains_keys)) if contains_keys else None
+    pattern = (
+        re.compile("|".join(re.escape(value) for value in contains_keys))
+        if contains_keys
+        else None
+    )
     return {"exact": exact, "contains": contains, "pattern": pattern}
 
 
 _SHOE_QUERY_ALIAS_INDEX = _build_alias_index(SHOE_QUERY_ALIASES, namespace="shoe_query")
-_BRAND_QUERY_ALIAS_INDEX = _build_alias_index(BRAND_QUERY_ALIASES, namespace="brand_query")
+_BRAND_QUERY_ALIAS_INDEX = _build_alias_index(
+    BRAND_QUERY_ALIASES, namespace="brand_query"
+)
 
 
 def _lookup_alias(term: str, alias_index: AliasIndex) -> str:
@@ -324,7 +348,9 @@ def _is_shoe_context(category: str) -> bool:
 
 def _is_shoe_category(category: str) -> bool:
     text = str(category or "").strip()
-    return bool(text and text in get_args(CategoryValue) and ("鞋" in text or "靴" in text))
+    return bool(
+        text and text in get_args(CategoryValue) and ("鞋" in text or "靴" in text)
+    )
 
 
 def _is_specific_shoe_category(category: str) -> bool:
@@ -385,7 +411,9 @@ def _build_query_plan(
     include_filter_only: bool = False,
 ) -> tuple[List[SearchPath], List[SearchPath]]:
     category_value = _map_category(category)
-    selected_keywords, keyword_kind = _resolve_keyword(keyword, shoe_context=_is_shoe_context(category_value))
+    selected_keywords, keyword_kind = _resolve_keyword(
+        keyword, shoe_context=_is_shoe_context(category_value)
+    )
     raw_keywords = _dedupe_texts(keyword)
     if raw_keywords and _is_brand_keyword(raw_keywords[0]):
         raw_keywords = []
@@ -400,13 +428,19 @@ def _build_query_plan(
             if _is_specific_shoe_category(category_value):
                 primary_candidates.append(("category", category_value))
             elif category_value == "鞋" or keyword_kind == "shoe":
-                primary_candidates.append((keyword_stage, _join_query(selected_keywords)))
+                primary_candidates.append(
+                    (keyword_stage, _join_query(selected_keywords))
+                )
                 if include_filter_only:
                     fallback_candidates.append(("filter_only", ""))
             else:
                 primary_stage = f"category_{keyword_stage}"
-                primary_candidates.append((primary_stage, _join_query([category_value], selected_keywords)))
-                fallback_candidates.append(("fallback_keyword", _join_query(selected_keywords)))
+                primary_candidates.append(
+                    (primary_stage, _join_query([category_value], selected_keywords))
+                )
+                fallback_candidates.append(
+                    ("fallback_keyword", _join_query(selected_keywords))
+                )
         else:
             primary_candidates.append(("category", category_value))
     elif selected_keywords:
@@ -426,9 +460,19 @@ def _build_where_variants(
     color: Any,
     price: Any,
 ) -> List[Dict[str, str]]:
-    gender_values = [GENDER_FILTER_IDS[value] for value in _dedupe_texts(gender) if value in GENDER_FILTER_IDS]
-    size_values = [SIZE_FILTER_IDS[value] for value in _dedupe_texts(size) if value in SIZE_FILTER_IDS]
-    price_values = [value for value in _dedupe_texts(price) if value in PRICE_FILTER_VALUES]
+    gender_values = [
+        GENDER_FILTER_IDS[value]
+        for value in _dedupe_texts(gender)
+        if value in GENDER_FILTER_IDS
+    ]
+    size_values = [
+        SIZE_FILTER_IDS[value]
+        for value in _dedupe_texts(size)
+        if value in SIZE_FILTER_IDS
+    ]
+    price_values = [
+        value for value in _dedupe_texts(price) if value in PRICE_FILTER_VALUES
+    ]
     filters = {
         "gender": gender_values[:1],
         "size": [",".join(size_values)] if size_values else [],
@@ -497,14 +541,20 @@ def _decode_cursor(cursor: str) -> CursorPayload | None:
         return None
     return {
         "query": query,
-        "filters": {str(key): value for key, value in where.items() if str(value or "").strip()},
+        "filters": {
+            str(key): value for key, value in where.items() if str(value or "").strip()
+        },
         "sort": normalize_sort(str(payload.get("sort") or ""), default=""),
         "page": page,
         "page_size": page_size,
         "source_query": str(payload.get("source_query") or query).strip(),
         "source_filters": {
             str(key): value
-            for key, value in (payload.get("source_filters") if isinstance(payload.get("source_filters"), dict) else where).items()
+            for key, value in (
+                payload.get("source_filters")
+                if isinstance(payload.get("source_filters"), dict)
+                else where
+            ).items()
             if str(value or "").strip()
         },
     }
@@ -544,12 +594,16 @@ def _source_query_for_path(query: str, requested_params: Dict[str, Any]) -> str:
     source_parts: List[str] = []
     if requested_category and requested_category in actual_query:
         source_parts.append(requested_category)
-    if requested_keyword and (not requested_category or actual_query != requested_category):
+    if requested_keyword and (
+        not requested_category or actual_query != requested_category
+    ):
         source_parts.append(requested_keyword)
     return _join_query(source_parts) or actual_query
 
 
-def _source_filters_for_where(where: Dict[str, Any], requested_params: Dict[str, Any]) -> Dict[str, Any]:
+def _source_filters_for_where(
+    where: Dict[str, Any], requested_params: Dict[str, Any]
+) -> Dict[str, Any]:
     source_filters: Dict[str, Any] = {}
     for key, value in dict(where or {}).items():
         if not str(value or "").strip():
@@ -569,7 +623,11 @@ def _build_product_cursor(
 ) -> Dict[str, Any]:
     return {
         "source_query": str(source_query or "").strip(),
-        "source_filters": {str(key): value for key, value in dict(source_filters or {}).items() if str(value or "").strip()},
+        "source_filters": {
+            str(key): value
+            for key, value in dict(source_filters or {}).items()
+            if str(value or "").strip()
+        },
         "sort": str(sort or "").strip(),
         "page": page,
         "page_size": page_size,
@@ -607,7 +665,9 @@ async def _run_list_products(
     page_size: int = _RESULT_LIMIT,
 ) -> tuple[List[Dict[str, Any]], SearchPath, Dict[str, str], int, Dict[str, Any]]:
     context = get_business_execution_context()
-    normalized_requested_params = requested_params if isinstance(requested_params, dict) else {}
+    normalized_requested_params = (
+        requested_params if isinstance(requested_params, dict) else {}
+    )
     list_sort = normalize_sort(sort, default="new") or "new"
     list_where = _full_where_payload(where)
     result = await list_products(
@@ -630,7 +690,11 @@ async def _run_list_products(
         return [], {"stage": "list_all", "query": ""}, dict(where or {}), 0, {}
 
     data = result.get("data") or {}
-    products = [summarize_product(item) for item in list(data.get("list") or []) if isinstance(item, dict)]
+    products = [
+        summarize_product(item)
+        for item in list(data.get("list") or [])
+        if isinstance(item, dict)
+    ]
     total = int(data.get("total", 0) or 0)
     source_filters = _source_filters_for_where(where, normalized_requested_params)
     cursor = _build_product_cursor(
@@ -651,7 +715,13 @@ async def _run_list_products(
         list_sort,
         page,
     )
-    return products, {"stage": "list_all", "query": ""}, dict(where or {}), total, cursor
+    return (
+        products,
+        {"stage": "list_all", "query": ""},
+        dict(where or {}),
+        total,
+        cursor,
+    )
 
 
 async def _run_search_paths(
@@ -662,13 +732,23 @@ async def _run_search_paths(
     requested_params: Dict[str, Any] | None = None,
     page: int = _DEFAULT_PAGE,
     page_size: int = _RESULT_LIMIT,
-) -> tuple[List[Dict[str, Any]], SearchPath | None, Dict[str, str], int, Dict[str, Any]]:
+) -> tuple[
+    List[Dict[str, Any]], SearchPath | None, Dict[str, str], int, Dict[str, Any]
+]:
     context = get_business_execution_context()
-    normalized_requested_params = requested_params if isinstance(requested_params, dict) else {}
+    normalized_requested_params = (
+        requested_params if isinstance(requested_params, dict) else {}
+    )
     for path in paths:
         for where in where_variants:
             if path.get("stage") == "filter_only":
-                products, selected_path, selected_where, total, cursor = await _run_list_products(
+                (
+                    products,
+                    selected_path,
+                    selected_where,
+                    total,
+                    cursor,
+                ) = await _run_list_products(
                     where=where,
                     sort=sort,
                     requested_params=normalized_requested_params,
@@ -698,10 +778,18 @@ async def _run_search_paths(
                 )
                 continue
             data = result.get("data") or {}
-            products = [summarize_product(item) for item in list(data.get("list") or []) if isinstance(item, dict)]
+            products = [
+                summarize_product(item)
+                for item in list(data.get("list") or [])
+                if isinstance(item, dict)
+            ]
             total = int(data.get("total", 0) or 0)
-            source_query = _source_query_for_path(path["query"], normalized_requested_params)
-            source_filters = _source_filters_for_where(where, normalized_requested_params)
+            source_query = _source_query_for_path(
+                path["query"], normalized_requested_params
+            )
+            source_filters = _source_filters_for_where(
+                where, normalized_requested_params
+            )
             next_cursor = _build_next_cursor(
                 query=path["query"],
                 where=where,
@@ -742,7 +830,9 @@ async def _run_cursor_page(cursor_payload: CursorPayload) -> Dict[str, Any]:
     query = str(cursor_payload["query"])
     where = dict(cursor_payload["filters"] or {})
     sort = normalize_sort(str(cursor_payload["sort"] or ""), default="")
-    result = await search_products(keyword=query, where=where, sort=sort, limit=page_size, page=page)
+    result = await search_products(
+        keyword=query, where=where, sort=sort, limit=page_size, page=page
+    )
     if "error" in result:
         return {
             "products": [],
@@ -753,7 +843,11 @@ async def _run_cursor_page(cursor_payload: CursorPayload) -> Dict[str, Any]:
         }
 
     data = result.get("data") or {}
-    found_products = [summarize_product(item) for item in list(data.get("list") or []) if isinstance(item, dict)]
+    found_products = [
+        summarize_product(item)
+        for item in list(data.get("list") or [])
+        if isinstance(item, dict)
+    ]
     total_found = int(data.get("total", 0) or 0)
     source_query = str(cursor_payload.get("source_query") or query).strip()
     source_filters = dict(cursor_payload.get("source_filters") or {})
@@ -775,7 +869,9 @@ async def _run_cursor_page(cursor_payload: CursorPayload) -> Dict[str, Any]:
         page_size=page_size,
         next_cursor=next_cursor,
     )
-    result_payload = _build_product_search_result(products=found_products, total_found=total_found)
+    result_payload = _build_product_search_result(
+        products=found_products, total_found=total_found
+    )
     result_payload["cursor"] = cursor
     if found_products:
         push_ticket_interaction_source({"products": found_products})
@@ -847,9 +943,13 @@ async def onitsuka_search_products_hybrid(
         }.items()
         if str(value or "").strip()
     }
-    where_variants = _build_where_variants(gender=gender, size=size, color=color, price=price)
+    where_variants = _build_where_variants(
+        gender=gender, size=size, color=color, price=price
+    )
     filters_available = where_variants != [{}]
-    primary_paths, fallback_paths = _build_query_plan(category=category, keyword=keyword, include_filter_only=filters_available)
+    primary_paths, fallback_paths = _build_query_plan(
+        category=category, keyword=keyword, include_filter_only=filters_available
+    )
     if not primary_paths and not fallback_paths:
         primary_paths = [{"stage": "filter_only", "query": ""}]
     logger.info(
@@ -863,7 +963,13 @@ async def onitsuka_search_products_hybrid(
         fallback_paths,
     )
 
-    found_products, selected_path, selected_where, total_found, result_cursor = await _run_search_paths(
+    (
+        found_products,
+        selected_path,
+        selected_where,
+        total_found,
+        result_cursor,
+    ) = await _run_search_paths(
         paths=primary_paths,
         where_variants=where_variants,
         sort=normalized_sort,
@@ -876,14 +982,22 @@ async def onitsuka_search_products_hybrid(
             context["user_id"],
             fallback_paths,
         )
-        found_products, selected_path, selected_where, total_found, result_cursor = await _run_search_paths(
+        (
+            found_products,
+            selected_path,
+            selected_where,
+            total_found,
+            result_cursor,
+        ) = await _run_search_paths(
             paths=fallback_paths,
             where_variants=where_variants,
             sort=normalized_sort,
             requested_params=requested_params,
         )
 
-    result = _build_product_search_result(products=found_products, total_found=total_found)
+    result = _build_product_search_result(
+        products=found_products, total_found=total_found
+    )
     result["cursor"] = result_cursor
     if found_products:
         push_ticket_interaction_source({"products": found_products})
@@ -899,7 +1013,9 @@ async def onitsuka_search_products_hybrid(
 
 
 @tool("onitsuka_get_product_detail", args_schema=GetOnitsukaProductDetailInput)
-async def onitsuka_get_product_detail(product_id: int, color_id: Optional[int] = None) -> Dict[str, Any]:
+async def onitsuka_get_product_detail(
+    product_id: int, color_id: Optional[int] = None
+) -> Dict[str, Any]:
     """读取商品详情；用于获取商品的尺码 / 库存 / 可选颜色。"""
     resolved_color_id = color_id or get_cached_default_color(product_id)
     if not resolved_color_id:
@@ -909,7 +1025,9 @@ async def onitsuka_get_product_detail(product_id: int, color_id: Optional[int] =
             "product_id": product_id,
         }
 
-    result = await get_product_detail(product_id=int(product_id), color_id=int(resolved_color_id))
+    result = await get_product_detail(
+        product_id=int(product_id), color_id=int(resolved_color_id)
+    )
     if "error" in result:
         return result
     adapted = adapt_product_detail(result.get("data") or {})

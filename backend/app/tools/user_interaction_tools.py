@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Literal, Optional, cast
+from typing import Any, Dict, Literal, Optional, cast
 
 from langchain_core.tools import tool
 from langgraph.types import interrupt as graph_interrupt
 from pydantic import BaseModel, Field
 
-from app.tools.business.execution_context import get_business_execution_context, get_ticket_interaction_sources
+from app.tools.business.execution_context import (
+    get_business_execution_context,
+    get_ticket_interaction_sources,
+)
 from app.config.logging import get_logger
 from app.models.display_product import DisplayProductCard
 from app.models.interaction import (
@@ -61,7 +64,10 @@ InterruptDisplayProductInput = DisplayProductCard
 
 class ProductSelectionInput(BaseModel):
     product_id: int = Field(description="商品 ID。不允许编造。")
-    color_id: int | None = Field(default=None, description="颜色 ID。不允许编造；没有则留空。")
+    color_id: int | None = Field(
+        default=None, description="颜色 ID。不允许编造；没有则留空。"
+    )
+
 
 class QaReplyInput(BaseModel):
     reply: str = Field(description="回复给用户的最终答案")
@@ -102,19 +108,25 @@ def _order_entity(payload: Dict[str, Any]) -> OrderInteractionDetail | None:
                 "order_item_id": _text(item.get("order_item_id") or item.get("id")),
                 "product_id": _text(item.get("product_id")),
                 "product_name": _text(item.get("product_name") or item.get("name")),
-                "order_item_quantity": item.get("order_item_quantity") or item.get("quantity") or item.get("qty"),
+                "order_item_quantity": item.get("order_item_quantity")
+                or item.get("quantity")
+                or item.get("qty"),
                 "product_image": _text(item.get("product_image") or item.get("image")),
             }
         )
     return OrderInteractionDetail(
         order_id=order_id,
-        order_status_label=_text(payload.get("order_status_label") or payload.get("status_label")),
+        order_status_label=_text(
+            payload.get("order_status_label") or payload.get("status_label")
+        ),
         source_channel=_text(payload.get("source_channel")),
         items_preview=preview,
     )
 
 
-def _product_entity(payload: Dict[str, Any], *, order_id: str = "") -> ProductInteractionDetail | None:
+def _product_entity(
+    payload: Dict[str, Any], *, order_id: str = ""
+) -> ProductInteractionDetail | None:
     product_id = _text(payload.get("product_id") or payload.get("id"))
     order_item_id = _text(payload.get("order_item_id"))
     if not product_id and not order_item_id:
@@ -125,7 +137,9 @@ def _product_entity(payload: Dict[str, Any], *, order_id: str = "") -> ProductIn
         order_item_id=order_item_id,
         sku_id=_text(payload.get("sku_id")),
         product_name=_text(payload.get("product_name") or payload.get("name")),
-        order_item_quantity=payload.get("order_item_quantity") or payload.get("quantity") or payload.get("qty"),
+        order_item_quantity=payload.get("order_item_quantity")
+        or payload.get("quantity")
+        or payload.get("qty"),
         product_image=_text(payload.get("product_image") or payload.get("image")),
     )
 
@@ -140,7 +154,9 @@ def _ticket_entity(payload: Dict[str, Any]) -> TicketInteractionDetail | None:
         ticket_id=ticket_id,
         ticket_type=_text(payload.get("ticket_type")),
         ticket_status=_text(payload.get("ticket_status") or payload.get("status")),
-        ticket_status_label=_text(payload.get("ticket_status_label") or payload.get("status_label")),
+        ticket_status_label=_text(
+            payload.get("ticket_status_label") or payload.get("status_label")
+        ),
     )
 
 
@@ -229,7 +245,9 @@ def _normalize_interaction(
     return result
 
 
-def _find_selected_detail(interaction: Dict[str, Any] | None, answer: str) -> Dict[str, Any] | None:
+def _find_selected_detail(
+    interaction: Dict[str, Any] | None, answer: str
+) -> Dict[str, Any] | None:
     if not interaction:
         return None
     normalized_key = str(answer or "").strip()
@@ -264,7 +282,9 @@ def ask_user_tool(
     - candidate_keys 必须来自工具返回结果中的真实 key（order_id / product_id / ticket_id），根据用户意图筛选。
     - 如传了 candidate_keys 但全不匹配，交互卡片将不生成，此时 reply 必须说明情况。
     """
-    normalized_interaction = _normalize_interaction(interaction_type, candidate_keys=candidate_keys)
+    normalized_interaction = _normalize_interaction(
+        interaction_type, candidate_keys=candidate_keys
+    )
     request_payload = {
         "reply": str(reply or "").strip(),
         "interaction": normalized_interaction,
@@ -286,7 +306,9 @@ def reply_with_products_tool(
     product_refs = [
         item.model_dump(exclude_none=True, exclude_defaults=True)
         if isinstance(item, ProductSelectionInput)
-        else ProductSelectionInput.model_validate(item).model_dump(exclude_none=True, exclude_defaults=True)
+        else ProductSelectionInput.model_validate(item).model_dump(
+            exclude_none=True, exclude_defaults=True
+        )
         for item in list(products or [])
     ]
     context = get_business_execution_context()
@@ -317,14 +339,22 @@ async def reply_to_user_tool(reply: str) -> str:
 
 
 class FinishStepInput(BaseModel):
-    step_status: Literal["done", "pending", "failed", "cancelled"] = Field(description="步骤状态")
-    slots: Dict[str, Any] = Field(default_factory=dict, description="本次新获取并确认的槽位键值对")
-    reply: str = Field(default="", description="发给用户的自然语言回复，不需回复时填空字符串")
+    step_status: Literal["done", "pending", "failed", "cancelled"] = Field(
+        description="步骤状态"
+    )
+    slots: Dict[str, Any] = Field(
+        default_factory=dict, description="本次新获取并确认的槽位键值对"
+    )
+    reply: str = Field(
+        default="", description="发给用户的自然语言回复，不需回复时填空字符串"
+    )
     reason: str = Field(default="", description="简短说明最终决定原因和依据")
 
 
 @tool("finish_step", args_schema=FinishStepInput, return_direct=True)
-def finish_step_tool(step_status: str, slots: Dict[str, Any], reply: str, reason: str) -> Dict[str, Any]:
+def finish_step_tool(
+    step_status: str, slots: Dict[str, Any], reply: str, reason: str
+) -> Dict[str, Any]:
     """结束当前步骤。必须调用此工具来正式结束步骤。
 
     使用规则：

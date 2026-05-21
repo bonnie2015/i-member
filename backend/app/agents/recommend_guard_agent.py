@@ -24,7 +24,6 @@ class RecommendGuardOutput(BaseModel):
 
 
 class RecommendGuardAgent(BaseAgent):
-
     def __init__(self):
         config = AgentConfig(
             name="recommend_guard",
@@ -48,18 +47,28 @@ class RecommendGuardAgent(BaseAgent):
         # 按时间顺序拼接消息：累计总结 → 上一轮对话 → 最近对话
         llm_messages: list = [SystemMessage(content=prompt)]
         if recommend_context and isinstance(recommend_context, dict):
-            llm_messages.append(HumanMessage(
-                content="【当前推荐任务的累计总结，由上一轮守卫产出】\n"
-                + json.dumps(recommend_context, ensure_ascii=False, indent=2, default=str)
-            ))
+            llm_messages.append(
+                HumanMessage(
+                    content="【当前推荐任务的累计总结，由上一轮守卫产出】\n"
+                    + json.dumps(
+                        recommend_context, ensure_ascii=False, indent=2, default=str
+                    )
+                )
+            )
         if trace:
-            llm_messages.append(HumanMessage(
-                content="【上一轮推荐过程】\n"
-                + json.dumps(trace, ensure_ascii=False, indent=2, default=str)
-            ))
+            llm_messages.append(
+                HumanMessage(
+                    content="【上一轮推荐过程】\n"
+                    + json.dumps(trace, ensure_ascii=False, indent=2, default=str)
+                )
+            )
         llm_messages.extend((input.messages or [])[-4:])
 
-        logger.info("[recommend_guard] thread_id=%s trace_rounds=%s", input.thread_id, len(trace))
+        logger.info(
+            "[recommend_guard] thread_id=%s trace_rounds=%s",
+            input.thread_id,
+            len(trace),
+        )
 
         response: RecommendGuardOutput = (
             await invoke_with_usage_logging(

@@ -9,7 +9,10 @@ from pydantic import BaseModel, Field
 from app.agents.summary_agent import summary_agent
 from app.config.config import settings
 from app.config.logging import get_logger
-from app.tools.business.execution_context import REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
+from app.tools.business.execution_context import (
+    REQUEST_THREAD_ID_CTX,
+    REQUEST_USER_ID_CTX,
+)
 
 logger = get_logger("rag_tools")
 
@@ -23,7 +26,9 @@ _index_instance = None
 
 
 class RagSearchInput(BaseModel):
-    query: str = Field(description="检索查询文本，用自然语言描述要查找的品牌政策或规则信息")
+    query: str = Field(
+        description="检索查询文本，用自然语言描述要查找的品牌政策或规则信息"
+    )
 
 
 def _get_index():
@@ -51,7 +56,9 @@ def _get_index():
         embed_model=embed_model,
     )
 
-    logger.info("[rag_tools] index initialized collection=%s", settings.qdrant_collection)
+    logger.info(
+        "[rag_tools] index initialized collection=%s", settings.qdrant_collection
+    )
     return _index_instance
 
 

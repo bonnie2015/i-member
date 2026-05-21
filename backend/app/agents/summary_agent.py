@@ -10,9 +10,8 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
 
@@ -63,10 +62,12 @@ class SummaryAgent:
             content = str(getattr(msg, "content", "") or "").strip()
             if not content:
                 continue
-            payload.append({
-                "role": getattr(msg, "type", msg.__class__.__name__),
-                "content": content,
-            })
+            payload.append(
+                {
+                    "role": getattr(msg, "type", msg.__class__.__name__),
+                    "content": content,
+                }
+            )
         return payload
 
     async def _invoke_llm(
@@ -93,7 +94,9 @@ class SummaryAgent:
             )
             return response
         except Exception as exc:
-            logger.warning("[summary] node=%s thread_id=%s failed: %s", node, thread_id, exc)
+            logger.warning(
+                "[summary] node=%s thread_id=%s failed: %s", node, thread_id, exc
+            )
             return None
 
     # ---- QA 对话在线压缩 ----
@@ -126,7 +129,9 @@ class SummaryAgent:
         if not parts:
             return existing_summary
 
-        logger.info("[summary] thread_id=%s compress old_turns=%s", thread_id, len(old_messages))
+        logger.info(
+            "[summary] thread_id=%s compress old_turns=%s", thread_id, len(old_messages)
+        )
 
         response = await self._invoke_llm(
             llm=get_llm("summary"),
@@ -144,7 +149,11 @@ class SummaryAgent:
         if response:
             summary = str(getattr(response, "content", "") or "").strip()
             if summary:
-                logger.info("[summary] thread_id=%s compressed length=%s", thread_id, len(summary))
+                logger.info(
+                    "[summary] thread_id=%s compressed length=%s",
+                    thread_id,
+                    len(summary),
+                )
                 return summary
 
         return existing_summary
@@ -172,10 +181,12 @@ class SummaryAgent:
             llm=llm,
             messages=[
                 SystemMessage(content=prompt),
-                HumanMessage(content=json.dumps(
-                    {"messages": self._serialize_messages(messages)},
-                    ensure_ascii=False,
-                )),
+                HumanMessage(
+                    content=json.dumps(
+                        {"messages": self._serialize_messages(messages)},
+                        ensure_ascii=False,
+                    )
+                ),
             ],
             node="service_summary",
             thread_id=thread_id,
@@ -204,7 +215,9 @@ class SummaryAgent:
         if not content:
             return ""
 
-        logger.info("[rag_context] thread_id=%s original_length=%s", thread_id, len(content))
+        logger.info(
+            "[rag_context] thread_id=%s original_length=%s", thread_id, len(content)
+        )
 
         response = await self._invoke_llm(
             llm=get_llm("summary"),
@@ -222,7 +235,11 @@ class SummaryAgent:
         if response:
             compressed = str(getattr(response, "content", "") or "").strip()
             if compressed:
-                logger.info("[rag_context] thread_id=%s compressed_length=%s", thread_id, len(compressed))
+                logger.info(
+                    "[rag_context] thread_id=%s compressed_length=%s",
+                    thread_id,
+                    len(compressed),
+                )
                 return compressed
 
         return content
@@ -249,7 +266,9 @@ class SummaryAgent:
             llm=llm,
             messages=[
                 SystemMessage(content=prompt),
-                HumanMessage(content=json.dumps(profile_data, ensure_ascii=False, indent=2)),
+                HumanMessage(
+                    content=json.dumps(profile_data, ensure_ascii=False, indent=2)
+                ),
             ],
             node="user_profile_summary",
             thread_id=thread_id,
@@ -265,7 +284,13 @@ class SummaryAgent:
 
         # fallback: 从原始数据拼
         parts = []
-        for key in ("name", "member_level", "value_segment", "preferences", "behavior_summary"):
+        for key in (
+            "name",
+            "member_level",
+            "value_segment",
+            "preferences",
+            "behavior_summary",
+        ):
             value = profile_data.get(key)
             text = str(value or "").strip()
             if text:

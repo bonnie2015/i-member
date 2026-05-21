@@ -79,7 +79,9 @@ def build_skills_snapshot(group: Optional[str] = None) -> None:
         )
     lines.append("</skills>")
     snapshot_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    logger.info(f"Skills snapshot built: group={target_group}, count={len(skills)} -> {snapshot_path}")
+    logger.info(
+        f"Skills snapshot built: group={target_group}, count={len(skills)} -> {snapshot_path}"
+    )
 
 
 def build_all_skills_snapshots() -> None:
@@ -134,7 +136,9 @@ def _resolve_skill_location(location: str) -> Path:
 
 
 @lru_cache(maxsize=32)
-def load_skill_context(location: Optional[str] = None, group: Optional[str] = None) -> str:
+def load_skill_context(
+    location: Optional[str] = None, group: Optional[str] = None
+) -> str:
     if not location:
         return load_skills_snapshot(group=group)
 

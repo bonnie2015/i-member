@@ -4,14 +4,24 @@ import ast
 import json
 from typing import Any, Dict, List
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langgraph.prebuilt import create_react_agent
 
 from app.agents.base import AgentConfig, AgentInput, AgentOutput, AgentStatus, BaseAgent
 from app.llm.llm_factory import get_llm
 from app.llm.runtime import with_usage_logging
 from app.prompts.prompt_builder import build_recommend_system_prompt
-from app.tools import get_onitsuka_tools, onitsuka_get_product_detail, reply_with_products_tool
+from app.tools import (
+    get_onitsuka_tools,
+    onitsuka_get_product_detail,
+    reply_with_products_tool,
+)
 from app.tools.memory_tools import get_memory_tools
 from app.tools.rag_tools import get_size_guide_tools
 from app.config.logging import get_logger
@@ -109,13 +119,17 @@ def _product_key(product: Dict[str, Any]) -> tuple[int, int | None] | None:
     if not pid:
         return None
     try:
-        cid = int(product.get("color_id") or product.get("default_color_id") or 0) or None
+        cid = (
+            int(product.get("color_id") or product.get("default_color_id") or 0) or None
+        )
     except Exception:
         cid = None
     return pid, cid
 
 
-def _find_product_by_ref(products: List[Dict[str, Any]], ref: Dict[str, Any]) -> Dict[str, Any] | None:
+def _find_product_by_ref(
+    products: List[Dict[str, Any]], ref: Dict[str, Any]
+) -> Dict[str, Any] | None:
     ref_key = _product_key(ref)
     if ref_key is None:
         return None
@@ -153,7 +167,11 @@ def _collect_tool_products(messages: List[BaseMessage]) -> List[Dict[str, Any]]:
 
 
 def _collect_anchor_products(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
-    return [item for item in list(ctx.get("anchor_products") or []) if isinstance(item, dict)]
+    return [
+        item
+        for item in list(ctx.get("anchor_products") or [])
+        if isinstance(item, dict)
+    ]
 
 
 def _resolve_selected_products(
@@ -166,7 +184,9 @@ def _resolve_selected_products(
     tool_products = _collect_tool_products(messages)
     anchor_products = _collect_anchor_products(recommend_context)
     for ref in product_refs:
-        product = _find_product_by_ref(tool_products, ref) or _find_product_by_ref(anchor_products, ref)
+        product = _find_product_by_ref(tool_products, ref) or _find_product_by_ref(
+            anchor_products, ref
+        )
         if not product:
             continue
         key = _product_key(product)
@@ -177,7 +197,9 @@ def _resolve_selected_products(
     return resolved
 
 
-def _extract_candidate_product_refs(messages: List[BaseMessage], *, limit: int = 4) -> List[Dict[str, Any]]:
+def _extract_candidate_product_refs(
+    messages: List[BaseMessage], *, limit: int = 4
+) -> List[Dict[str, Any]]:
     refs: List[Dict[str, Any]] = []
     seen: set[tuple[int, int | None]] = set()
     for msg in reversed(messages):
@@ -194,7 +216,10 @@ def _extract_candidate_product_refs(messages: List[BaseMessage], *, limit: int =
             except Exception:
                 pid = 0
             try:
-                cid = int(item.get("color_id") or item.get("default_color_id") or 0) or None
+                cid = (
+                    int(item.get("color_id") or item.get("default_color_id") or 0)
+                    or None
+                )
             except Exception:
                 cid = None
             if not pid:
@@ -226,7 +251,11 @@ def _extract_reply_result(
         if not isinstance(payload, dict):
             continue
         reply = str(payload.get("reply") or "").strip()
-        refs = [item for item in list(payload.get("products") or []) if isinstance(item, dict)]
+        refs = [
+            item
+            for item in list(payload.get("products") or [])
+            if isinstance(item, dict)
+        ]
         products = _resolve_selected_products(messages, refs, recommend_context)
         if not reply and not products:
             continue
@@ -247,14 +276,12 @@ def _extract_direct_ai_reply(messages: List[BaseMessage]) -> str:
     return ""
 
 
-
 # ============================================================
 # RecommendAgent
 # ============================================================
 
 
 class RecommendAgent(BaseAgent):
-
     def __init__(self, config: AgentConfig | None = None):
         if config is None:
             config = AgentConfig(
@@ -276,7 +303,12 @@ class RecommendAgent(BaseAgent):
 
     def _get_all_tools(self) -> List[Any]:
         if not self._all_tools:
-            self._all_tools = [*self._get_search_tools(), onitsuka_get_product_detail, *get_size_guide_tools(), reply_with_products_tool]
+            self._all_tools = [
+                *self._get_search_tools(),
+                onitsuka_get_product_detail,
+                *get_size_guide_tools(),
+                reply_with_products_tool,
+            ]
         return self._all_tools
 
     @staticmethod
@@ -322,17 +354,23 @@ class RecommendAgent(BaseAgent):
     def _tool_control_message(tool_count: int) -> SystemMessage | None:
         remaining = _MAX_TOOL_CALLS - tool_count
         if remaining == 1:
-            return SystemMessage(content=(
-                "【系统指令】你只剩最后一次工具调用了，必须在本次调用 reply_with_products 结束本轮。"
-                "不要再搜索，立即调用 reply_with_products。"
-            ))
+            return SystemMessage(
+                content=(
+                    "【系统指令】你只剩最后一次工具调用了，必须在本次调用 reply_with_products 结束本轮。"
+                    "不要再搜索，立即调用 reply_with_products。"
+                )
+            )
         if remaining <= 0:
-            return SystemMessage(content=(
-                "【系统指令】搜索次数已用完！你必须立即调用 reply_with_products，禁止再调用任何搜索工具。"
-            ))
-        return SystemMessage(content=(
-            f"【系统指令】本轮最多 {_MAX_TOOL_CALLS} 次工具调用，你已使用 {tool_count} 次，还需搜索的话尽快。"
-        ))
+            return SystemMessage(
+                content=(
+                    "【系统指令】搜索次数已用完！你必须立即调用 reply_with_products，禁止再调用任何搜索工具。"
+                )
+            )
+        return SystemMessage(
+            content=(
+                f"【系统指令】本轮最多 {_MAX_TOOL_CALLS} 次工具调用，你已使用 {tool_count} 次，还需搜索的话尽快。"
+            )
+        )
 
     # ---- _execute ----
 
@@ -343,17 +381,24 @@ class RecommendAgent(BaseAgent):
 
         prompt = await build_recommend_system_prompt(
             user_context=input.user_context,
-            runtime_context=recommend_context if isinstance(recommend_context, dict) else {},
+            runtime_context=recommend_context
+            if isinstance(recommend_context, dict)
+            else {},
         )
 
         def _model_fn(agent_state: Dict[str, Any], _runtime: Any) -> Any:
             msgs = [
-                m for m in list(agent_state.get("messages") or [])
+                m
+                for m in list(agent_state.get("messages") or [])
                 if isinstance(m, BaseMessage)
             ]
             count = self._tool_call_count(msgs)
             available = (
-                [t for t in tools if _tool_name(t) == str(reply_with_products_tool.name)]
+                [
+                    t
+                    for t in tools
+                    if _tool_name(t) == str(reply_with_products_tool.name)
+                ]
                 if count >= self.config.max_tool_calls
                 else list(tools)
             )
@@ -368,11 +413,14 @@ class RecommendAgent(BaseAgent):
             _msg_types = [type(m).__name__ for m in msgs]
             _has_tool_calls = [
                 len(list(getattr(m, "tool_calls", None) or []))
-                for m in msgs if isinstance(m, AIMessage)
+                for m in msgs
+                if isinstance(m, AIMessage)
             ]
             logger.info(
                 "[recommend_agent] thread_id=%s _model_fn msg_types=%s ai_tool_call_counts=%s",
-                input.thread_id, _msg_types, _has_tool_calls,
+                input.thread_id,
+                _msg_types,
+                _has_tool_calls,
             )
             model = get_llm("recommend").bind_tools(available, tool_choice="auto")
             return with_usage_logging(
@@ -385,7 +433,8 @@ class RecommendAgent(BaseAgent):
 
         def _compact_model_input(agent_state: Dict[str, Any]) -> Dict[str, Any]:
             msgs = [
-                m for m in list(agent_state.get("messages") or [])
+                m
+                for m in list(agent_state.get("messages") or [])
                 if isinstance(m, BaseMessage)
             ]
             state_count = self._tool_call_count(msgs)
@@ -401,11 +450,16 @@ class RecommendAgent(BaseAgent):
             ]
             logger.info(
                 "[recommend_agent] thread_id=%s compact: state_msgs=%s state_tool_count=%s llm_input_count=%s types=%s",
-                input.thread_id, len(msgs), state_count, len(compacted), _compact_types,
+                input.thread_id,
+                len(msgs),
+                state_count,
+                len(compacted),
+                _compact_types,
             )
             logger.info(
                 "[recommend_agent] thread_id=%s llm_input_preview=%s",
-                input.thread_id, _compact_content_preview,
+                input.thread_id,
+                _compact_content_preview,
             )
             return {"llm_input_messages": compacted}
 
@@ -433,9 +487,13 @@ class RecommendAgent(BaseAgent):
                 input.thread_id,
             )
             init_messages = [
-                m for m in (input.messages or [])[-4:]
+                m
+                for m in (input.messages or [])[-4:]
                 if isinstance(m, HumanMessage)
-                or (isinstance(m, AIMessage) and not list(getattr(m, "tool_calls", None) or []))
+                or (
+                    isinstance(m, AIMessage)
+                    and not list(getattr(m, "tool_calls", None) or [])
+                )
             ]
 
         agent_result = await agent.ainvoke(
@@ -446,9 +504,16 @@ class RecommendAgent(BaseAgent):
         messages = list((agent_result or {}).get("messages") or [])
         tool_results = len([m for m in messages if isinstance(m, ToolMessage)])
         # DEBUG: 最终消息结构
-        _final_types = [(type(m).__name__, len(list(getattr(m, "tool_calls", None) or []))) for m in messages]
+        _final_types = [
+            (type(m).__name__, len(list(getattr(m, "tool_calls", None) or [])))
+            for m in messages
+        ]
         _last_msg = messages[-1] if messages else None
-        _last_has_tool_calls = bool(list(getattr(_last_msg, "tool_calls", None) or [])) if _last_msg else False
+        _last_has_tool_calls = (
+            bool(list(getattr(_last_msg, "tool_calls", None) or []))
+            if _last_msg
+            else False
+        )
         logger.info(
             "[recommend_agent] thread_id=%s done messages=%s tool_results=%s",
             input.thread_id,
@@ -457,7 +522,8 @@ class RecommendAgent(BaseAgent):
         )
         logger.info(
             "[recommend_agent] thread_id=%s final_msg_types=%s last_msg_type=%s last_has_tool_calls=%s",
-            input.thread_id, _final_types,
+            input.thread_id,
+            _final_types,
             type(_last_msg).__name__ if _last_msg else "None",
             _last_has_tool_calls,
         )
@@ -470,7 +536,9 @@ class RecommendAgent(BaseAgent):
             if not reply or reply == _LANGGRAPH_RECURSION_REPLY:
                 logger.warning(
                     "[recommend_agent] thread_id=%s fallback products=%s original_reply=%s",
-                    input.thread_id, len(products), reply[:80],
+                    input.thread_id,
+                    len(products),
+                    reply[:80],
                 )
                 reply = _HAS_PRODUCT_FALLBACK if products else _NO_PRODUCT_FALLBACK
             return AgentOutput(
@@ -486,7 +554,8 @@ class RecommendAgent(BaseAgent):
         if not reply:
             logger.warning(
                 "[recommend_agent] thread_id=%s fallback_direct products=%s",
-                input.thread_id, len(products),
+                input.thread_id,
+                len(products),
             )
             reply = _HAS_PRODUCT_FALLBACK if products else _NO_PRODUCT_FALLBACK
         return AgentOutput(

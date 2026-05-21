@@ -23,7 +23,9 @@ async def _build_profile_summary(profile: Dict[str, Any]) -> str:
     return await summary_agent.summarize_profile(profile)
 
 
-async def load_user_profile(user_id: str, fields: Optional[str] = None) -> Dict[str, Any]:
+async def load_user_profile(
+    user_id: str, fields: Optional[str] = None
+) -> Dict[str, Any]:
     from app.tools.business.scrm_tools import call_scrm_api
 
     cache_key = _profile_cache_key(user_id, fields)
@@ -42,16 +44,27 @@ async def load_user_profile(user_id: str, fields: Optional[str] = None) -> Dict[
 
         profile = await call_scrm_api(
             "get_user_profile",
-            {"user_id": user_id, **({"fields": fields} if str(fields or "").strip() else {})},
+            {
+                "user_id": user_id,
+                **({"fields": fields} if str(fields or "").strip() else {}),
+            },
         )
-        if not isinstance(profile, dict) or "error" in profile or "error_code" in profile:
+        if (
+            not isinstance(profile, dict)
+            or "error" in profile
+            or "error_code" in profile
+        ):
             return profile if isinstance(profile, dict) else {}
 
         profile.pop("_raw", None)
         summary = await _build_profile_summary(profile)
         payload = {**profile, "summary": summary}
         if redis:
-            await redis.setex(cache_key, _PROFILE_CACHE_TTL_SECONDS, json.dumps(payload, ensure_ascii=False))
+            await redis.setex(
+                cache_key,
+                _PROFILE_CACHE_TTL_SECONDS,
+                json.dumps(payload, ensure_ascii=False),
+            )
         return payload
     except Exception as e:
         logger.warning("[user_profile] load failed for user_id=%s: %s", user_id, e)

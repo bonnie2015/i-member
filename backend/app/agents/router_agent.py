@@ -7,7 +7,7 @@ RouterAgent — 意图分类。
 from __future__ import annotations
 
 import json
-from typing import Dict, Literal, Optional, Sequence
+from typing import Literal, Sequence
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
@@ -93,8 +93,12 @@ class RouterAgent(BaseAgent):
             )
         )[0]
 
-        logger.info("[router_agent] thread_id=%s intent=%s reason=%s",
-                     input.thread_id, response.intent, response.reason)
+        logger.info(
+            "[router_agent] thread_id=%s intent=%s reason=%s",
+            input.thread_id,
+            response.intent,
+            response.reason,
+        )
 
         return AgentOutput(
             reply="",

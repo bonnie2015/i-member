@@ -38,7 +38,9 @@ def _b64url_decode(data: str) -> bytes:
 
 
 def _sign(signing_input: str, secret: str) -> str:
-    digest = hmac.new(secret.encode("utf-8"), signing_input.encode("utf-8"), hashlib.sha256).digest()
+    digest = hmac.new(
+        secret.encode("utf-8"), signing_input.encode("utf-8"), hashlib.sha256
+    ).digest()
     return _b64url_encode(digest)
 
 

@@ -7,7 +7,11 @@ from app.agents.base import AgentInput, AgentStatus
 from app.agents.router_agent import router_agent
 from app.config.logging import get_logger
 from app.workflow.nodes.post_process.post_process import spawn_post_process_tasks
-from app.workflow.state import AgentState, extract_last_service_round, get_service_clear_state
+from app.workflow.state import (
+    AgentState,
+    extract_last_service_round,
+    get_service_clear_state,
+)
 
 logger = get_logger("router")
 _ALLOWED_INTENTS = {"ticket", "qa", "recommend"}
@@ -49,7 +53,9 @@ async def router_node(state: AgentState):
     previous_subgraph = state.get("current_subgraph")
 
     if not messages:
-        logger.warning("[router] thread_id=%s messages empty, defaulting to QA", thread_id)
+        logger.warning(
+            "[router] thread_id=%s messages empty, defaulting to QA", thread_id
+        )
         return {
             "intent": "qa",
             "current_subgraph": "qa",
@@ -58,14 +64,20 @@ async def router_node(state: AgentState):
 
     user_input = str(getattr(messages[-1], "content", "") or "").strip()
 
-    result = await router_agent.run(AgentInput(
-        user_query=user_input,
-        thread_id=thread_id,
-        user_id=state.get("user_id"),
-        messages=messages,
-    ))
+    result = await router_agent.run(
+        AgentInput(
+            user_query=user_input,
+            thread_id=thread_id,
+            user_id=state.get("user_id"),
+            messages=messages,
+        )
+    )
 
-    routed_intent = result.data.get("intent", "qa") if result.status == AgentStatus.SUCCESS else "qa"
+    routed_intent = (
+        result.data.get("intent", "qa")
+        if result.status == AgentStatus.SUCCESS
+        else "qa"
+    )
     if routed_intent not in _ALLOWED_INTENTS:
         routed_intent = "qa"
 

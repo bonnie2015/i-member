@@ -28,10 +28,18 @@ class GetUserOrdersInput(BaseModel):
         default=None,
         description="订单号或商品名关键词；缺少 order_id 时可先用它找候选订单。",
     )
-    order_start_time: Optional[str] = Field(default=None, description="订单创建开始时间，ISO8601 格式，须含时区偏移如 +08:00。")
-    order_end_time: Optional[str] = Field(default=None, description="订单创建结束时间，ISO8601 格式，须含时区偏移如 +08:00。")
+    order_start_time: Optional[str] = Field(
+        default=None,
+        description="订单创建开始时间，ISO8601 格式，须含时区偏移如 +08:00。",
+    )
+    order_end_time: Optional[str] = Field(
+        default=None,
+        description="订单创建结束时间，ISO8601 格式，须含时区偏移如 +08:00。",
+    )
     page: int = Field(default=1, ge=1, description="页码，默认 1。")
-    page_size: int = Field(default=10, ge=1, le=20, description="每页数量，默认 10，最大 20。")
+    page_size: int = Field(
+        default=10, ge=1, le=20, description="每页数量，默认 10，最大 20。"
+    )
 
 
 class GetOrderDetailInput(BaseModel):
@@ -40,20 +48,40 @@ class GetOrderDetailInput(BaseModel):
 
 class GetUserScoreInput(BaseModel):
     page: int = Field(default=1, ge=1, description="页码，默认 1。")
-    page_size: int = Field(default=10, ge=1, le=20, description="每页数量，默认 10，最大 20。")
-    score_start_time: Optional[str] = Field(default=None, description="积分变动开始时间，ISO8601 格式，须含时区偏移如 +08:00。")
-    score_end_time: Optional[str] = Field(default=None, description="积分变动结束时间，ISO8601 格式，须含时区偏移如 +08:00。")
+    page_size: int = Field(
+        default=10, ge=1, le=20, description="每页数量，默认 10，最大 20。"
+    )
+    score_start_time: Optional[str] = Field(
+        default=None,
+        description="积分变动开始时间，ISO8601 格式，须含时区偏移如 +08:00。",
+    )
+    score_end_time: Optional[str] = Field(
+        default=None,
+        description="积分变动结束时间，ISO8601 格式，须含时区偏移如 +08:00。",
+    )
 
 
 class CreateTicketInput(BaseModel):
-    ticket_type: str = Field(description="工单类型：refund/change/quality/complain/equity。")
-    problem_description: str = Field(description="用户诉求、申请原因、投诉经过或问题描述。")
-    evidence_images: Optional[List[str]] = Field(default=None, description="可选，用户上传的问题凭证图片 URL 列表。")
+    ticket_type: str = Field(
+        description="工单类型：refund/change/quality/complain/equity。"
+    )
+    problem_description: str = Field(
+        description="用户诉求、申请原因、投诉经过或问题描述。"
+    )
+    evidence_images: Optional[List[str]] = Field(
+        default=None, description="可选，用户上传的问题凭证图片 URL 列表。"
+    )
     order_id: Optional[str] = Field(default=None, description="可选，关联订单 ID。")
-    order_item_id: Optional[str] = Field(default=None, description="可选，关联订单商品项 ID。")
+    order_item_id: Optional[str] = Field(
+        default=None, description="可选，关联订单商品项 ID。"
+    )
     sku_id: Optional[str] = Field(default=None, description="可选，关联 SKU ID。")
-    ticket_quantity: Optional[int] = Field(default=None, description="可选，工单涉及数量，如退/换/问题数量。")
-    source_channel: Optional[str] = Field(default=None, description="可选，来源渠道，如 app/wechat/web。")
+    ticket_quantity: Optional[int] = Field(
+        default=None, description="可选，工单涉及数量，如退/换/问题数量。"
+    )
+    source_channel: Optional[str] = Field(
+        default=None, description="可选，来源渠道，如 app/wechat/web。"
+    )
 
 
 class GetTicketInput(BaseModel):
@@ -62,12 +90,24 @@ class GetTicketInput(BaseModel):
 
 class GetTicketsInput(BaseModel):
     ticket_type: Optional[str] = Field(default=None, description="可选，工单类型过滤。")
-    ticket_status: Optional[str] = Field(default=None, description="可选，工单状态：open/processing/closed。")
-    ticket_keyword: Optional[str] = Field(default=None, description="可选，工单标题或工单号关键词。")
-    ticket_start_time: Optional[str] = Field(default=None, description="工单创建开始时间，ISO8601 格式，须含时区偏移如 +08:00。")
-    ticket_end_time: Optional[str] = Field(default=None, description="工单创建结束时间，ISO8601 格式，须含时区偏移如 +08:00。")
+    ticket_status: Optional[str] = Field(
+        default=None, description="可选，工单状态：open/processing/closed。"
+    )
+    ticket_keyword: Optional[str] = Field(
+        default=None, description="可选，工单标题或工单号关键词。"
+    )
+    ticket_start_time: Optional[str] = Field(
+        default=None,
+        description="工单创建开始时间，ISO8601 格式，须含时区偏移如 +08:00。",
+    )
+    ticket_end_time: Optional[str] = Field(
+        default=None,
+        description="工单创建结束时间，ISO8601 格式，须含时区偏移如 +08:00。",
+    )
     page: int = Field(default=1, ge=1, description="页码，默认 1。")
-    page_size: int = Field(default=10, ge=1, le=20, description="每页数量，默认 10，最大 20。")
+    page_size: int = Field(
+        default=10, ge=1, le=20, description="每页数量，默认 10，最大 20。"
+    )
 
 
 EndpointSpec = Tuple[str, str, Tuple[str, ...]]
@@ -83,7 +123,6 @@ _SCRM_ENDPOINTS: Dict[str, EndpointSpec] = {
     "get_ticket": ("GET", "/ticket/{ticket_id}", ()),
     "get_tickets": ("GET", "/ticket", ()),
 }
-
 
 
 def _unwrap_success_payload(result: Dict[str, Any]) -> Dict[str, Any]:
@@ -106,7 +145,9 @@ def _canonical_order_item(item: Dict[str, Any]) -> Dict[str, Any]:
         color_id=item.get("color_id"),
         sku_id=item.get("sku_id"),
         product_name=item.get("product_name") or item.get("name"),
-        order_item_quantity=item.get("order_item_quantity") or item.get("quantity") or item.get("qty"),
+        order_item_quantity=item.get("order_item_quantity")
+        or item.get("quantity")
+        or item.get("qty"),
         order_item_price=item.get("order_item_price") or item.get("price"),
         product_image=item.get("product_image") or item.get("image"),
     )
@@ -126,7 +167,8 @@ def _canonical_order(order: Dict[str, Any]) -> Dict[str, Any]:
         order_status=order.get("order_status") or order.get("status"),
         order_status_label=order.get("order_status_label") or order.get("status_label"),
         order_amount=order.get("order_amount") or order.get("amount"),
-        order_items_summary=order.get("order_items_summary") or order.get("items_summary"),
+        order_items_summary=order.get("order_items_summary")
+        or order.get("items_summary"),
         source_channel=order.get("source_channel"),
         order_created_at=order.get("order_created_at") or order.get("created_at"),
         order_items=normalized_items,
@@ -137,16 +179,20 @@ def _canonical_ticket_timeline_item(item: Dict[str, Any]) -> Dict[str, Any]:
     return _compact_payload(
         ticket_progress_time=item.get("ticket_progress_time") or item.get("time"),
         ticket_progress_action=item.get("ticket_progress_action") or item.get("action"),
-        ticket_progress_operator=item.get("ticket_progress_operator") or item.get("operator"),
+        ticket_progress_operator=item.get("ticket_progress_operator")
+        or item.get("operator"),
     )
 
 
-def _canonical_ticket(ticket: Dict[str, Any], *, include_detail: bool) -> Dict[str, Any]:
+def _canonical_ticket(
+    ticket: Dict[str, Any], *, include_detail: bool
+) -> Dict[str, Any]:
     payload = _compact_payload(
         ticket_id=ticket.get("ticket_id") or ticket.get("id"),
         ticket_type=ticket.get("ticket_type"),
         ticket_status=ticket.get("ticket_status") or ticket.get("status"),
-        ticket_status_label=ticket.get("ticket_status_label") or ticket.get("status_label"),
+        ticket_status_label=ticket.get("ticket_status_label")
+        or ticket.get("status_label"),
         ticket_title=ticket.get("ticket_title") or ticket.get("title"),
         ticket_created_at=ticket.get("ticket_created_at") or ticket.get("created_at"),
     )
@@ -159,7 +205,8 @@ def _canonical_ticket(ticket: Dict[str, Any], *, include_detail: bool) -> Dict[s
     payload.update(
         _compact_payload(
             ticket_content=ticket.get("ticket_content") or ticket.get("content"),
-            ticket_description=ticket.get("ticket_description") or ticket.get("description"),
+            ticket_description=ticket.get("ticket_description")
+            or ticket.get("description"),
             evidence_images=ticket.get("evidence_images") or ticket.get("images"),
             order_id=ticket.get("order_id"),
             order_item_id=ticket.get("order_item_id"),
@@ -183,7 +230,8 @@ def _normalize_user_level_payload(result: Dict[str, Any]) -> Dict[str, Any]:
         member_level=result.get("member_level") or result.get("level"),
         member_level_code=result.get("member_level_code") or result.get("level_code"),
         member_score=result.get("member_score") or result.get("score"),
-        score_to_next_member_level=result.get("score_to_next_member_level") or result.get("score_to_next"),
+        score_to_next_member_level=result.get("score_to_next_member_level")
+        or result.get("score_to_next"),
         next_member_level=result.get("next_member_level") or result.get("next_level"),
     )
 
@@ -198,10 +246,12 @@ def _normalize_user_score_payload(result: Dict[str, Any]) -> Dict[str, Any]:
             continue
         score_records.append(
             _compact_payload(
-                score_record_id=record.get("score_record_id") or record.get("record_id"),
+                score_record_id=record.get("score_record_id")
+                or record.get("record_id"),
                 score_change=record.get("score_change") or record.get("change"),
                 score_change_type=record.get("score_change_type") or record.get("type"),
-                score_change_reason=record.get("score_change_reason") or record.get("reason"),
+                score_change_reason=record.get("score_change_reason")
+                or record.get("reason"),
                 score_changed_at=record.get("score_changed_at") or record.get("time"),
             )
         )
@@ -220,7 +270,12 @@ def _normalize_orders_payload(result: Dict[str, Any]) -> Dict[str, Any]:
     orders = result.get("orders")
     if not isinstance(orders, list):
         return result
-    return {**result, "orders": [_canonical_order(order) for order in orders if isinstance(order, dict)]}
+    return {
+        **result,
+        "orders": [
+            _canonical_order(order) for order in orders if isinstance(order, dict)
+        ],
+    }
 
 
 def _normalize_order_detail_payload(result: Dict[str, Any]) -> Dict[str, Any]:
@@ -263,7 +318,9 @@ def _normalize_tool_result(tool_name: str, result: Dict[str, Any]) -> Dict[str, 
     return normalized
 
 
-def _validate_required_fields(tool_name: str, tool_input: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _validate_required_fields(
+    tool_name: str, tool_input: Dict[str, Any]
+) -> Optional[Dict[str, Any]]:
     endpoint = _SCRM_ENDPOINTS.get(tool_name)
     if endpoint is None:
         return {
@@ -365,10 +422,14 @@ def _prepare_tool_input(tool_name: str, tool_input: Dict[str, Any]) -> Dict[str,
 
     prepared["title"] = str(
         prepared.get("title")
-        or _build_ticket_title(str(prepared.get("ticket_type") or ""), problem_description)
+        or _build_ticket_title(
+            str(prepared.get("ticket_type") or ""), problem_description
+        )
     ).strip()
     prepared["content"] = str(prepared.get("content") or problem_description).strip()
-    prepared["description"] = str(prepared.get("description") or problem_description).strip()
+    prepared["description"] = str(
+        prepared.get("description") or problem_description
+    ).strip()
     if evidence_images is not None:
         prepared["images"] = evidence_images
     if "ticket_quantity" in prepared and "quantity" not in prepared:
@@ -437,12 +498,20 @@ async def call_scrm_api(tool_name: str, tool_input: Dict[str, Any]) -> Dict[str,
         return normalized_result
     except PermissionError as e:
         logger.warning("[scrm_tools] auth blocked for %s: %s", tool_name, e)
-        return {"error": str(e), "error_code": "SCRM_AUTH_MISSING", "unauthorized": True}
+        return {
+            "error": str(e),
+            "error_code": "SCRM_AUTH_MISSING",
+            "unauthorized": True,
+        }
     except httpx.HTTPStatusError as e:
         status_code = e.response.status_code if e.response else None
         if status_code == 429:
             logger.warning("[scrm_tools] rate limited for %s: %s", tool_name, e)
-            return {"error": str(e), "error_code": "SCRM_RATE_LIMITED", "tool": tool_name}
+            return {
+                "error": str(e),
+                "error_code": "SCRM_RATE_LIMITED",
+                "tool": tool_name,
+            }
         logger.warning("[scrm_tools] http error for %s: %s", tool_name, e)
         return {
             "error": str(e),

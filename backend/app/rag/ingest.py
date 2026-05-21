@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from qdrant_client import QdrantClient
 
@@ -122,7 +122,9 @@ async def ingest_directory(directory: Path | None = None) -> Dict[str, Any]:
         cache_path = _cache_md_path(pdf_path, md5)
 
         if cache_path.exists():
-            logger.info("[ingest] md5_cache_hit %s -> %s", pdf_path.name, cache_path.name)
+            logger.info(
+                "[ingest] md5_cache_hit %s -> %s", pdf_path.name, cache_path.name
+            )
             markdown_text = cache_path.read_text(encoding="utf-8")
         else:
             logger.info("[ingest] parsing %s md5=%s", pdf_path.name, md5)
@@ -153,7 +155,9 @@ async def ingest_directory(directory: Path | None = None) -> Dict[str, Any]:
         embed_model=embed_model,
     )
 
-    logger.info("[ingest] done collection=%s chunks=%s", _COLLECTION_NAME, len(all_nodes))
+    logger.info(
+        "[ingest] done collection=%s chunks=%s", _COLLECTION_NAME, len(all_nodes)
+    )
     return {
         "collection": _COLLECTION_NAME,
         "chunks": len(all_nodes),

@@ -87,7 +87,9 @@ def _build_order_item_key(detail: OrderInteractionDetail) -> str:
     return str(detail.order_id or "").strip()
 
 
-def _build_order_item_label(detail: OrderInteractionDetail, *, interaction_type: InteractionType) -> str:
+def _build_order_item_label(
+    detail: OrderInteractionDetail, *, interaction_type: InteractionType
+) -> str:
     order_id = str(detail.order_id or "").strip()
     status_label = str(detail.order_status_label or "").strip()
     base = f"订单 {order_id}".strip()
@@ -105,8 +107,12 @@ def _build_product_item_key(detail: ProductInteractionDetail) -> str:
     return str(detail.product_id or "").strip()
 
 
-def _build_product_item_label(detail: ProductInteractionDetail, *, interaction_type: InteractionType) -> str:
-    product_name = str(detail.product_name or "").strip() or str(detail.product_id or "").strip()
+def _build_product_item_label(
+    detail: ProductInteractionDetail, *, interaction_type: InteractionType
+) -> str:
+    product_name = (
+        str(detail.product_name or "").strip() or str(detail.product_id or "").strip()
+    )
     base = f"{product_name}{_quantity_text(detail.order_item_quantity)}".strip()
     if interaction_type == "confirm_product":
         return f"确认商品：{base}"
@@ -120,8 +126,12 @@ def _build_ticket_item_key(detail: TicketInteractionDetail) -> str:
     return str(detail.ticket_title or "").strip()
 
 
-def _build_ticket_item_label(detail: TicketInteractionDetail, *, interaction_type: InteractionType) -> str:
-    title = str(detail.ticket_title or "").strip() or str(detail.ticket_id or "").strip()
+def _build_ticket_item_label(
+    detail: TicketInteractionDetail, *, interaction_type: InteractionType
+) -> str:
+    title = (
+        str(detail.ticket_title or "").strip() or str(detail.ticket_id or "").strip()
+    )
     status_label = str(detail.ticket_status_label or "").strip()
     base = title
     if status_label:
@@ -219,7 +229,9 @@ def build_interaction_payload(
             key = _build_ticket_item_key(entity)
             label = _build_ticket_item_label(entity, interaction_type=interaction_type)
         else:
-            raise TypeError(f"unsupported interaction entity type: {type(entity).__name__}")
+            raise TypeError(
+                f"unsupported interaction entity type: {type(entity).__name__}"
+            )
 
         items.append(
             InteractionItem(
@@ -244,10 +256,22 @@ def normalize_interaction_entities(
     expected_kind = _expected_detail_kind(interaction_type)
     for entity in entities:
         if expected_kind == "order":
-            parsed = entity if isinstance(entity, OrderInteractionDetail) else OrderInteractionDetail.model_validate(entity)
+            parsed = (
+                entity
+                if isinstance(entity, OrderInteractionDetail)
+                else OrderInteractionDetail.model_validate(entity)
+            )
         elif expected_kind == "product":
-            parsed = entity if isinstance(entity, ProductInteractionDetail) else ProductInteractionDetail.model_validate(entity)
+            parsed = (
+                entity
+                if isinstance(entity, ProductInteractionDetail)
+                else ProductInteractionDetail.model_validate(entity)
+            )
         else:
-            parsed = entity if isinstance(entity, TicketInteractionDetail) else TicketInteractionDetail.model_validate(entity)
+            parsed = (
+                entity
+                if isinstance(entity, TicketInteractionDetail)
+                else TicketInteractionDetail.model_validate(entity)
+            )
         normalized.append(parsed)
     return normalized

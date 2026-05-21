@@ -21,7 +21,9 @@ async def get_redis_client() -> AsyncRedis:
 
     async with _redis_lock:
         if _redis_client is None:
-            _redis_client = AsyncRedis.from_url(settings.redis_url, decode_responses=True)
+            _redis_client = AsyncRedis.from_url(
+                settings.redis_url, decode_responses=True
+            )
             _redis_ping_ok = False
         if not _redis_ping_ok:
             try:

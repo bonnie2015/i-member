@@ -8,7 +8,10 @@ from pydantic import BaseModel, Field
 from app.memory.service_memory import (
     load_recent_service_memories_limited,
 )
-from app.tools.business.execution_context import REQUEST_THREAD_ID_CTX, REQUEST_USER_ID_CTX
+from app.tools.business.execution_context import (
+    REQUEST_THREAD_ID_CTX,
+    REQUEST_USER_ID_CTX,
+)
 from app.config.logging import get_logger
 
 logger = get_logger("service_memory_tools")
@@ -17,7 +20,12 @@ _MAX_SERVICE_MEMORY_LIMIT = 5
 
 
 class GetServiceMemoriesInput(BaseModel):
-    limit: int = Field(default=1, ge=1, le=_MAX_SERVICE_MEMORY_LIMIT, description="查询最近几条服务记忆，默认 1，最大 5。")
+    limit: int = Field(
+        default=1,
+        ge=1,
+        le=_MAX_SERVICE_MEMORY_LIMIT,
+        description="查询最近几条服务记忆，默认 1，最大 5。",
+    )
     intent: Optional[Literal["ticket", "recommend", "qa"]] = Field(
         default=None,
         description="可选意图过滤；不传则查询全部类型。支持 ticket、recommend、qa。",
@@ -50,7 +58,9 @@ def _not_found_error(kind: str) -> Dict[str, Any]:
     }
 
 
-def _compact_service_memory(item: Dict[str, Any], *, include_payload: bool = False) -> Dict[str, Any]:
+def _compact_service_memory(
+    item: Dict[str, Any], *, include_payload: bool = False
+) -> Dict[str, Any]:
     compacted = {
         "service_id": item.get("service_id"),
         "intent": item.get("intent"),
@@ -61,7 +71,11 @@ def _compact_service_memory(item: Dict[str, Any], *, include_payload: bool = Fal
     }
     if include_payload:
         compacted["payload"] = item.get("payload") or {}
-    return {key: value for key, value in compacted.items() if value not in (None, "") or key == "summary"}
+    return {
+        key: value
+        for key, value in compacted.items()
+        if value not in (None, "") or key == "summary"
+    }
 
 
 @tool("get_service_memories", args_schema=GetServiceMemoriesInput)
@@ -101,12 +115,17 @@ async def get_service_memories_tool(
         if not items:
             return _not_found_error("service memory")
         return {
-            "items": [_compact_service_memory(item, include_payload=include_payload) for item in items],
+            "items": [
+                _compact_service_memory(item, include_payload=include_payload)
+                for item in items
+            ],
             "count": len(items),
             "include_payload": include_payload,
         }
     except Exception as e:
-        logger.warning("[service_memory_tools] load recent service memories failed: %s", e)
+        logger.warning(
+            "[service_memory_tools] load recent service memories failed: %s", e
+        )
         return {
             "error": str(e),
             "error_code": "SERVICE_MEMORY_LOAD_FAILED",

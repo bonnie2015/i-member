@@ -10,9 +10,15 @@ from app.agents.ticket.execute_agent import _resolve_step_tools
 from app.config.logging import get_logger
 from app.llm.llm_factory import get_llm
 from app.llm.runtime import estimate_tokens, with_usage_logging
-from app.prompts.prompt_builder import TicketExecuteRuntimePayload, build_ticket_execute_system_prompt
+from app.prompts.prompt_builder import (
+    TicketExecuteRuntimePayload,
+    build_ticket_execute_system_prompt,
+)
 from app.tools import ask_user_tool, finish_step_tool
-from app.tools.business.execution_context import push_ticket_interaction_source, ticket_interaction_source_context
+from app.tools.business.execution_context import (
+    push_ticket_interaction_source,
+    ticket_interaction_source_context,
+)
 from app.tools.user_interaction_tools import _normalize_interaction
 from app.workflow.state import AgentState
 
@@ -57,16 +63,26 @@ def _maybe_compress_try_process(tp: list, step_goal: str) -> list:
         if "compressed" in entry:
             lines.append(str(entry["compressed"]))
         elif "args" in entry:
-            lines.append(f"调用了 {entry.get('tool', '')}({json.dumps(entry.get('args', {}), ensure_ascii=False)})")
+            lines.append(
+                f"调用了 {entry.get('tool', '')}({json.dumps(entry.get('args', {}), ensure_ascii=False)})"
+            )
         elif "result" in entry:
             result = entry.get("result", "")
-            result_text = (_message_text(result) if not isinstance(result, str) else result)[:200]
+            result_text = (
+                _message_text(result) if not isinstance(result, str) else result
+            )[:200]
             lines.append(f"结果: {result_text}")
 
-    compressed_text = "【前序操作摘要】步骤目标: " + step_goal[:100] + "\n" + "\n".join(lines)
+    compressed_text = (
+        "【前序操作摘要】步骤目标: " + step_goal[:100] + "\n" + "\n".join(lines)
+    )
 
-    logger.info("[executor_node] compressing try_process: %d entries → 1 summary (%d chars → %d tokens)",
-                len(old_entries), len("".join(lines)), estimate_tokens(compressed_text))
+    logger.info(
+        "[executor_node] compressing try_process: %d entries → 1 summary (%d chars → %d tokens)",
+        len(old_entries),
+        len("".join(lines)),
+        estimate_tokens(compressed_text),
+    )
 
     return [{"compressed": compressed_text}, *recent_entries]
 
@@ -89,10 +105,14 @@ def _try_process_to_messages(system_prompt: str, tp: list) -> list:
         elif "result" in entry:
             tool_name = entry.get("tool", "")
             result = entry.get("result", "")
-            result_text = _message_text(result) if not isinstance(result, str) else result
+            result_text = (
+                _message_text(result) if not isinstance(result, str) else result
+            )
             call_id = pending_tool_call_id or f"call_{i}"
             pending_tool_call_id = None
-            messages.append(ToolMessage(content=result_text, name=tool_name, tool_call_id=call_id))
+            messages.append(
+                ToolMessage(content=result_text, name=tool_name, tool_call_id=call_id)
+            )
 
     return messages
 
@@ -151,12 +171,20 @@ async def executor_node(state: AgentState) -> Dict[str, Any]:
 
     if not steps:
         logger.warning("[executor_node] thread_id=%s no_steps", thread_id)
-        return {"final_status": "failed", "final_reason": "no_executable_plan", "current_step_index": 0}
+        return {
+            "final_status": "failed",
+            "final_reason": "no_executable_plan",
+            "current_step_index": 0,
+        }
 
     current_step_index = int(state.get("current_step_index") or 0)
     if current_step_index >= len(steps):
-        logger.warning("[executor_node] thread_id=%s index_out_of_range index=%s total=%s",
-                       thread_id, current_step_index, len(steps))
+        logger.warning(
+            "[executor_node] thread_id=%s index_out_of_range index=%s total=%s",
+            thread_id,
+            current_step_index,
+            len(steps),
+        )
         return {"current_step_index": current_step_index}
 
     step = dict(steps[current_step_index])
@@ -164,12 +192,19 @@ async def executor_node(state: AgentState) -> Dict[str, Any]:
     expected_slots = list(state.get("expected_slots") or [])
     try_process: list = list(step.get("try_process") or [])
 
-    logger.info("[executor_node] thread_id=%s step_index=%s goal=%s try_process_len=%s",
-                thread_id, current_step_index, str(step.get("goal") or "")[:60], len(try_process))
+    logger.info(
+        "[executor_node] thread_id=%s step_index=%s goal=%s try_process_len=%s",
+        thread_id,
+        current_step_index,
+        str(step.get("goal") or "")[:60],
+        len(try_process),
+    )
 
     # --- tools & prompt ---
     tools = _resolve_step_tools(step)
-    tool_map = {str(t.name): t for t in tools if str(t.name) not in ("ask_user", "finish_step")}
+    tool_map = {
+        str(t.name): t for t in tools if str(t.name) not in ("ask_user", "finish_step")
+    }
 
     prompt_step = {k: v for k, v in step.items() if k != "try_process"}
     system_prompt = await build_ticket_execute_system_prompt(
@@ -186,10 +221,17 @@ async def executor_node(state: AgentState) -> Dict[str, Any]:
 
     with ticket_interaction_source_context():
         result = await _run_executor_loop(
-            state=state, step=step, steps=steps, step_idx=current_step_index,
-            existing_slots=existing_slots, try_process=try_process,
-            tools=tools, tool_map=tool_map, messages=messages,
-            tool_call_count=tool_call_count, thread_id=thread_id,
+            state=state,
+            step=step,
+            steps=steps,
+            step_idx=current_step_index,
+            existing_slots=existing_slots,
+            try_process=try_process,
+            tools=tools,
+            tool_map=tool_map,
+            messages=messages,
+            tool_call_count=tool_call_count,
+            thread_id=thread_id,
         )
     return result
 
@@ -212,17 +254,24 @@ async def _run_executor_loop(
         # --- model ---
         if tool_call_count + i >= _MAX_TOOL_CALLS - 1:
             available_tools = [finish_step_tool, ask_user_tool]
-            messages.append(SystemMessage(content=(
-                f"已达到工具调用上限（{_MAX_TOOL_CALLS} 次）。必须调用 finish_step 结束本步骤，step_status 设为 pending。"
-            )))
+            messages.append(
+                SystemMessage(
+                    content=(
+                        f"已达到工具调用上限（{_MAX_TOOL_CALLS} 次）。必须调用 finish_step 结束本步骤，step_status 设为 pending。"
+                    )
+                )
+            )
         else:
             available_tools = tools
 
         model = get_llm("ticket")
         model = model.bind_tools(available_tools, tool_choice="required")
         model = with_usage_logging(
-            model, node="ticket_executor", thread_id=thread_id,
-            user_id=state.get("user_id"), provider="deepseek",
+            model,
+            node="ticket_executor",
+            thread_id=thread_id,
+            user_id=state.get("user_id"),
+            provider="deepseek",
         )
 
         # --- call ---
@@ -234,7 +283,11 @@ async def _run_executor_loop(
             step["failed_reason"] = "llm_timeout"
             step["failed_type"] = "system"
             steps[step_idx] = step
-            return {"steps": steps, "slots": existing_slots, "current_step_index": step_idx}
+            return {
+                "steps": steps,
+                "slots": existing_slots,
+                "current_step_index": step_idx,
+            }
 
         messages.append(response)
 
@@ -243,20 +296,40 @@ async def _run_executor_loop(
             continue
 
         # check for ask_user / finish_step first
-        ask_user_tc = next((dict(tc) for tc in tool_calls if str(tc.get("name") or "") == "ask_user"), None)
-        finish_tc = next((dict(tc) for tc in tool_calls if str(tc.get("name") or "") == "finish_step"), None)
+        ask_user_tc = next(
+            (dict(tc) for tc in tool_calls if str(tc.get("name") or "") == "ask_user"),
+            None,
+        )
+        finish_tc = next(
+            (
+                dict(tc)
+                for tc in tool_calls
+                if str(tc.get("name") or "") == "finish_step"
+            ),
+            None,
+        )
 
         # === ask_user ===
         if ask_user_tc:
             tool_args = dict(ask_user_tc.get("args") or {})
             payload = _build_ask_user_payload(tool_args)
-            try_process.append({"tool": "ask_user", "args": tool_args, "interrupt_payload": payload})
+            try_process.append(
+                {"tool": "ask_user", "args": tool_args, "interrupt_payload": payload}
+            )
             step["try_process"] = try_process
             steps[step_idx] = step
-            logger.info("[executor_node] thread_id=%s ask_user reply=%s interaction_type=%s candidate_keys=%s",
-                        thread_id, str(tool_args.get("reply") or "")[:80],
-                        tool_args.get("interaction_type"), tool_args.get("candidate_keys"))
-            return {"steps": steps, "slots": existing_slots, "current_step_index": step_idx}
+            logger.info(
+                "[executor_node] thread_id=%s ask_user reply=%s interaction_type=%s candidate_keys=%s",
+                thread_id,
+                str(tool_args.get("reply") or "")[:80],
+                tool_args.get("interaction_type"),
+                tool_args.get("candidate_keys"),
+            )
+            return {
+                "steps": steps,
+                "slots": existing_slots,
+                "current_step_index": step_idx,
+            }
 
         # === finish_step ===
         if finish_tc:
@@ -269,15 +342,24 @@ async def _run_executor_loop(
                 step["failed_reason"] = reason
             new_slots = dict(tool_args.get("slots") or {})
             merged_slots = {**existing_slots, **new_slots}
-            logger.info("[executor_node] thread_id=%s finish_step status=%s new_slots=%s",
-                        thread_id, step["step_status"], len(new_slots))
+            logger.info(
+                "[executor_node] thread_id=%s finish_step status=%s new_slots=%s",
+                thread_id,
+                step["step_status"],
+                len(new_slots),
+            )
             steps[step_idx] = step
             response_dict: Dict[str, Any] = {
-                "steps": steps, "slots": merged_slots, "current_step_index": step_idx,
+                "steps": steps,
+                "slots": merged_slots,
+                "current_step_index": step_idx,
             }
             reply_text = str(tool_args.get("reply") or "").strip()
             if reply_text:
-                response_dict["messages"] = [*state["messages"], AIMessage(content=reply_text)]
+                response_dict["messages"] = [
+                    *state["messages"],
+                    AIMessage(content=reply_text),
+                ]
             return response_dict
 
         # === normal tools: execute all ===
@@ -285,32 +367,58 @@ async def _run_executor_loop(
             tool_call = dict(tc)
             tool_name = str(tool_call.get("name") or "")
             tool_args = dict(tool_call.get("args") or {})
-            logger.info("[executor_node] thread_id=%s tool_call=%s call_%s/%s",
-                         thread_id, tool_name, tool_call_count + i + 1, _MAX_TOOL_CALLS)
+            logger.info(
+                "[executor_node] thread_id=%s tool_call=%s call_%s/%s",
+                thread_id,
+                tool_name,
+                tool_call_count + i + 1,
+                _MAX_TOOL_CALLS,
+            )
 
             tool = tool_map.get(tool_name)
             if tool is None:
                 error_msg = f"工具 {tool_name} 不在当前步骤可用工具列表中"
                 try_process.append({"tool": tool_name, "args": tool_args})
                 try_process.append({"tool": tool_name, "result": error_msg})
-                messages.append(ToolMessage(content=error_msg, tool_call_id=tool_call.get("id", ""), name=tool_name))
+                messages.append(
+                    ToolMessage(
+                        content=error_msg,
+                        tool_call_id=tool_call.get("id", ""),
+                        name=tool_name,
+                    )
+                )
                 continue
 
             try:
                 result = await _execute_tool_safe(tool, tool_args)
             except Exception as exc:
-                logger.exception("[executor_node] thread_id=%s tool_error tool=%s: %s", thread_id, tool_name, exc)
+                logger.exception(
+                    "[executor_node] thread_id=%s tool_error tool=%s: %s",
+                    thread_id,
+                    tool_name,
+                    exc,
+                )
                 result = f"工具执行错误: {exc}"
 
             try_process.append({"tool": tool_name, "args": tool_args})
             try_process.append({"tool": tool_name, "result": result})
-            result_text = _message_text(result) if not isinstance(result, str) else result
-            messages.append(ToolMessage(content=result_text, tool_call_id=tool_call.get("id", ""), name=tool_name))
+            result_text = (
+                _message_text(result) if not isinstance(result, str) else result
+            )
+            messages.append(
+                ToolMessage(
+                    content=result_text,
+                    tool_call_id=tool_call.get("id", ""),
+                    name=tool_name,
+                )
+            )
 
             if isinstance(result, dict):
                 push_ticket_interaction_source(result)
 
-        try_process = _maybe_compress_try_process(try_process, str(step.get("goal") or ""))
+        try_process = _maybe_compress_try_process(
+            try_process, str(step.get("goal") or "")
+        )
 
     # --- exceeded max tool calls ---
     logger.warning("[executor_node] thread_id=%s exceeded_max_tool_calls", thread_id)
