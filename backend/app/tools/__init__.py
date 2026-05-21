@@ -1,3 +1,5 @@
+# ruff: noqa: F401
+
 from app.tools.user_interaction_tools import (
     FinishStepInput,
     InterruptDisplayProductInput,

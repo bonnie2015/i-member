@@ -14,9 +14,9 @@ from app.tools.business.execution_context import (
     REQUEST_USER_ID_CTX,
 )
 
-logger = get_logger("rag_tools")
-
 from app.llm.runtime import estimate_tokens
+
+logger = get_logger("rag_tools")
 
 _EMBEDDING_MODEL = "BAAI/bge-small-zh-v1.5"
 _SIMILARITY_TOP_K = 3
@@ -36,7 +36,7 @@ def _get_index():
     if _index_instance is not None:
         return _index_instance
 
-    from llama_index.core import StorageContext, VectorStoreIndex
+    from llama_index.core import VectorStoreIndex
     from llama_index.embeddings.fastembed import FastEmbedEmbedding
     from llama_index.vector_stores.qdrant import QdrantVectorStore
     from qdrant_client import QdrantClient
@@ -50,7 +50,6 @@ def _get_index():
         enable_hybrid=False,
     )
 
-    storage_context = StorageContext.from_defaults(vector_store=vector_store)
     _index_instance = VectorStoreIndex.from_vector_store(
         vector_store=vector_store,
         embed_model=embed_model,

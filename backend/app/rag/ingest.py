@@ -149,7 +149,7 @@ async def ingest_directory(directory: Path | None = None) -> Dict[str, Any]:
 
     logger.info("[ingest] total_chunks=%s building_index", len(all_nodes))
 
-    index = VectorStoreIndex(
+    VectorStoreIndex(
         nodes=all_nodes,
         storage_context=storage_context,
         embed_model=embed_model,
