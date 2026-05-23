@@ -5,6 +5,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt as graph_interrupt
 
+from app.config.constants import MAX_REPLAN
 from app.config.logging import get_logger
 from app.llm.llm_factory import get_llm
 from app.llm.runtime import invoke_with_usage_logging
@@ -19,8 +20,6 @@ from app.workflow.nodes.ticket.planner import plan_node
 from app.workflow.state import AgentState
 
 logger = get_logger("ticket_subgraph")
-
-_MAX_REPLAN = 2
 
 
 def _route_after_guard(state: AgentState) -> str:
@@ -122,7 +121,7 @@ def reflect_node(state: AgentState) -> dict:
         return {"final_status": "cancelled"}
 
     # pending / failed
-    if replan_count < _MAX_REPLAN:
+    if replan_count < MAX_REPLAN:
         logger.info("[ticket_reflect] → replan (plan), reason=%s", reason[:60])
         return {
             "replan_count": replan_count + 1,
@@ -188,7 +187,11 @@ async def finalize_node(state: AgentState) -> dict:
 
     interaction = _build_ticket_interaction(state)
     if interaction:
-        result["interaction"] = interaction
+        current_service = state.get("service_state") or {}
+        if not isinstance(current_service, dict):
+            current_service = {}
+        current_service["interaction"] = interaction
+        result["service_state"] = current_service
 
     return result
 

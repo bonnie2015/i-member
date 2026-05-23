@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     jwt_issuer: str = "member-ops-agent"
     jwt_clock_skew_seconds: int = 30
 
+    # Langfuse 可观测性
+    langfuse_secret_key: Optional[str] = None
+    langfuse_public_key: Optional[str] = None
+    langfuse_base_url: Optional[str] = None
+
     # Workflow debug switches
     skip_recommend_post_process: bool = True
 

@@ -537,9 +537,13 @@ async def get_user_orders(
     page_size: int = 10,
 ) -> Dict[str, Any]:
     """列出当前用户订单。缺失 order_id 时可先用它找候选订单。返回空列表说明确实没有符合筛选条件的订单，不要反复试。"""
+    from app.tools.business.execution_context import REQUEST_USER_ID_CTX
+
+    user_id = REQUEST_USER_ID_CTX.get() or ""
     return await call_scrm_api(
         "get_user_orders",
         _compact_payload(
+            user_id=user_id,
             order_status=order_status,
             order_keyword=order_keyword,
             order_start_time=order_start_time,

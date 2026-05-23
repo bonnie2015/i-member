@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.config.logging import get_logger
 from app.models.interaction import InteractionPayload
+from app.observability.langfuse_client import get_langfuse_handler
 from app.workflow.state import (
     AgentState,
     extract_last_service_round,
@@ -269,6 +270,50 @@ def create_workflow(checkpointer):
     return graph.compile(checkpointer=checkpointer)
 
 
+def _enrich_config_with_langfuse(
+    config: Dict[str, Any],
+    user_id: str,
+    thread_id: str,
+    *,
+    trace_name: str = "member-ops-chat",
+    trace_input: str | None = None,
+    tags: list[str] | None = None,
+) -> Dict[str, Any]:
+    """按 Langfuse 最佳实践，把 handler + session + trace name + tags 注入 config。
+
+    - trace_name: 描述性名称，在 Langfuse Traces 列表中可筛选
+    - trace_input: 仅传用户消息，避免 function args 泄漏到 trace
+    - tags: 按维度分类（channel、service），支持 Dashboard 筛选
+    - session_id: 按 thread_id 聚合多轮对话
+    - user_id: 按用户筛选，成本归属
+    """
+    handler = get_langfuse_handler()
+    if handler is None:
+        return config
+
+    enriched = dict(config)
+    callbacks = enriched.get("callbacks", [])
+    if not isinstance(callbacks, list):
+        callbacks = [callbacks]
+    if handler not in callbacks:
+        callbacks = [handler] + list(callbacks)
+    enriched["callbacks"] = callbacks
+
+    metadata = enriched.get("metadata") or {}
+    if isinstance(metadata, dict):
+        metadata["langfuse_session_id"] = thread_id
+        metadata["langfuse_user_id"] = user_id
+        metadata["langfuse_trace_name"] = trace_name
+        if trace_input is not None:
+            metadata["langfuse_trace_input"] = trace_input
+        resolved_tags = list(tags or [])
+        if resolved_tags:
+            metadata["langfuse_tags"] = resolved_tags
+        enriched["metadata"] = metadata
+
+    return enriched
+
+
 async def invoke_member_ops(
     user_message: str,
     user_id: str,
@@ -286,7 +331,15 @@ async def invoke_member_ops(
         channel=channel,
         log_tag="invoke_agent",
     )
-    result = await wf.ainvoke(invoke_state, config)
+    enriched_config = _enrich_config_with_langfuse(
+        config,
+        user_id,
+        thread_id,
+        trace_name="member-ops-chat",
+        trace_input=user_message,
+        tags=["channel:" + channel],
+    )
+    result = await wf.ainvoke(invoke_state, enriched_config)
     saved_state = await wf.aget_state(config)
     saved_values = getattr(saved_state, "values", None)
     saved_values = saved_values if isinstance(saved_values, dict) else {}
@@ -323,9 +376,13 @@ async def invoke_member_ops(
     if service_finished:
         spawn_post_process_tasks(state_snapshot)
     await _clear_finished_service_state(wf, config, state_snapshot)
+    service_state = state_snapshot.get("service_state") or {}
+    service_interaction = (
+        service_state.get("interaction") if isinstance(service_state, dict) else None
+    )
     return {
         "thread_id": thread_id,
         "reply": reply,
-        "interaction": state_snapshot.get("interaction"),
+        "interaction": service_interaction,
         "products": products,
     }

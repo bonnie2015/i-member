@@ -18,7 +18,6 @@ from app.prompts.prompt_builder import (
     build_ticket_plan_system_prompt,
 )
 from app.skills.registry import load_skill_context, load_skill_metadata
-from app.tools import get_scrm_tools, onitsuka_get_product_detail
 from app.tools.memory_tools import get_memory_tools
 
 logger = get_logger("ticket_plan_agent")
@@ -110,18 +109,9 @@ def _load_selected_skill_content(service_key: str) -> str:
     )
 
 
-def _tool_registry() -> Dict[str, BaseTool]:
-    return {
-        str(tool.name): tool
-        for tool in [
-            *get_scrm_tools(),
-            onitsuka_get_product_detail,
-            *get_memory_tools(),
-        ]
-    }
-
-
 def _resolve_planner_tools(tool_names: List[str]) -> List[BaseTool]:
+    from app.agents.ticket.execute_agent import _tool_registry
+
     registry = _tool_registry()
     resolved: List[BaseTool] = []
     for item in tool_names:

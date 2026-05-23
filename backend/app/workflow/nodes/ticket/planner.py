@@ -2,61 +2,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from langchain_core.messages import AIMessage, HumanMessage
-
 from app.agents.ticket.plan_agent import ticket_plan_agent
 from app.agents.base import AgentInput, AgentStatus
 from app.config.logging import get_logger
-from app.llm.llm_factory import get_llm
-from app.llm.runtime import invoke_with_usage_logging
-from app.prompts.prompt_builder import (
-    FinalReplyContext,
-    build_ticket_final_reply_prompt,
-)
 from app.workflow.state import AgentState
 
 logger = get_logger("ticket_plan_node")
-
-
-def _last_user_message_text(state: AgentState) -> str:
-    messages = list(state.get("messages") or [])
-    for message in reversed(messages):
-        if isinstance(message, HumanMessage):
-            return str(getattr(message, "content", "") or "").strip()
-    return ""
-
-
-async def _generate_final_reply(
-    state: AgentState,
-    final_status: str,
-    final_reason: str,
-) -> str:
-    try:
-        prompt = await build_ticket_final_reply_prompt(
-            context=FinalReplyContext(
-                service_key=str(state.get("service_key") or ""),
-                goal=str(state.get("goal") or ""),
-                final_status=final_status,
-                final_reason=final_reason,
-                slots=dict(state.get("slots") or {}),
-            ),
-        )
-        response, _ = await invoke_with_usage_logging(
-            llm=get_llm("ticket"),
-            messages=[HumanMessage(content=prompt)],
-            node="ticket_final_reply",
-            thread_id=state.get("thread_id"),
-            user_id=state.get("user_id"),
-            provider="deepseek",
-            timeout_seconds=30,
-        )
-        return (
-            str(getattr(response, "content", "") or "").strip()
-            or "当前工单服务已结束。"
-        )
-    except Exception as exc:
-        logger.warning("[plan_node] final_reply_gen_failed: %s", exc)
-        return "当前工单服务已结束。"
 
 
 def _build_steps(
@@ -126,14 +77,9 @@ async def plan_node(state: AgentState) -> Dict[str, Any]:
         logger.error(
             "[plan_node] thread_id=%s agent_failed status=%s", thread_id, result.status
         )
-        final_reply = "当前服务暂时无法处理，请稍后再试。"
         return {
-            "final_reply": final_reply,
             "final_status": "failed",
             "final_reason": "plan_agent_failed",
-            "current_subgraph": None,
-            "replan_reason": "plan_agent_failed",
-            "messages": [*state["messages"], AIMessage(content=final_reply)],
         }
 
     data = result.data
@@ -152,15 +98,9 @@ async def plan_node(state: AgentState) -> Dict[str, Any]:
     )
 
     if not steps:
-        final_reason = reason or "plan_impossible"
-        final_reply = await _generate_final_reply(state, "failed", final_reason)
         return {
-            "final_reply": final_reply,
             "final_status": "failed",
-            "final_reason": final_reason,
-            "current_subgraph": None,
-            "replan_reason": final_reason,
-            "messages": [*state["messages"], AIMessage(content=final_reply)],
+            "final_reason": reason or "plan_impossible",
         }
 
     merged_slots = {**existing_slots, **pre_filled_slots}

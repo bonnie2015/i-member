@@ -89,6 +89,7 @@ async def chat(
                 "content": request.message,
             },
         )
+
         result = await invoke_member_ops(
             user_message=request.message,
             user_id=user_id,

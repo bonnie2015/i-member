@@ -10,6 +10,8 @@ from app.agents.base import AgentConfig, AgentInput, AgentOutput, AgentStatus, B
 from app.config.logging import get_logger
 from app.llm.llm_factory import get_llm
 from app.llm.runtime import with_usage_logging
+from app.config.constants import QA_MAX_TOOL_CALLS
+from app.utils.message_utils import message_text
 from app.prompts.prompt_builder import build_qa_system_prompt
 from app.tools.memory_tools import get_memory_tools
 from app.tools.rag_tools import get_rag_tools
@@ -17,26 +19,11 @@ from app.tools.user_interaction_tools import reply_to_user_tool
 
 logger = get_logger("qa_agent")
 
-_MAX_TOOL_CALLS = 3
 _MAX_GRAPH_STEPS = 16
 _QA_TIMEOUT_SECONDS = 60
 _FALLBACK_REPLY = (
     "我先帮您确认一下相关信息，您也可以把问题再说具体一点，我继续为您处理。"
 )
-
-
-def _message_text(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: List[str] = []
-        for item in content:
-            if isinstance(item, dict) and item.get("type") == "text":
-                parts.append(str(item.get("text") or ""))
-            else:
-                parts.append(str(item))
-        return "\n".join(parts)
-    return str(content or "")
 
 
 def _extract_reply_result(messages: List[BaseMessage]) -> str | None:
@@ -46,7 +33,7 @@ def _extract_reply_result(messages: List[BaseMessage]) -> str | None:
             continue
         if str(getattr(message, "name", "") or "").strip() != reply_tool_name:
             continue
-        content = _message_text(getattr(message, "content", "")).strip()
+        content = message_text(getattr(message, "content", "")).strip()
         if not content:
             continue
         try:
@@ -69,7 +56,7 @@ def _extract_direct_ai_reply(messages: List[BaseMessage]) -> str:
             continue
         if list(getattr(message, "tool_calls", None) or []):
             continue
-        reply = _message_text(getattr(message, "content", "")).strip()
+        reply = message_text(getattr(message, "content", "")).strip()
         if not reply:
             continue
         return reply
@@ -83,7 +70,7 @@ class QAAgent(BaseAgent):
             role="qa",
             timeout_seconds=_QA_TIMEOUT_SECONDS,
             max_recursion=_MAX_GRAPH_STEPS,
-            max_tool_calls=_MAX_TOOL_CALLS,
+            max_tool_calls=QA_MAX_TOOL_CALLS,
             fallback_reply=_FALLBACK_REPLY,
         )
         super().__init__(config)
@@ -99,7 +86,7 @@ class QAAgent(BaseAgent):
             msgs = list(state.get("messages") or [])
             count = sum(1 for m in msgs if isinstance(m, ToolMessage))
             available_tools = (
-                [reply_to_user_tool] if count >= _MAX_TOOL_CALLS else tools
+                [reply_to_user_tool] if count >= QA_MAX_TOOL_CALLS else tools
             )
             model = get_llm("qa").bind_tools(available_tools, tool_choice="required")
             return with_usage_logging(
@@ -113,7 +100,7 @@ class QAAgent(BaseAgent):
         def _pre_model_hook(state: Dict[str, Any]) -> Dict[str, Any]:
             msgs = list(state.get("messages") or [])
             count = sum(1 for m in msgs if isinstance(m, ToolMessage))
-            if count < _MAX_TOOL_CALLS:
+            if count < QA_MAX_TOOL_CALLS:
                 return {}
             from langchain_core.messages import SystemMessage
 
@@ -161,6 +148,7 @@ class QAAgent(BaseAgent):
         )
 
         result_messages = list((agent_result or {}).get("messages") or [])
+        self._result_messages = result_messages
         reply = _extract_reply_result(result_messages)
         if not reply:
             reply = _extract_direct_ai_reply(result_messages)

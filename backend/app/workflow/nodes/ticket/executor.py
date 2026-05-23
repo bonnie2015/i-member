@@ -19,13 +19,12 @@ from app.tools.business.execution_context import (
     push_ticket_interaction_source,
     ticket_interaction_source_context,
 )
+from app.config.constants import TICKET_EXECUTOR_MAX_TOOL_CALLS, TRY_PROCESS_MAX_TOKENS
 from app.tools.user_interaction_tools import _normalize_interaction
+from app.utils.message_utils import message_text
 from app.workflow.state import AgentState
 
 logger = get_logger("ticket_executor_node")
-
-_MAX_TOOL_CALLS = 5
-_TRY_PROCESS_MAX_TOKENS = 3000
 
 # ---------------- try_process helpers ----------------
 
@@ -34,7 +33,7 @@ def _maybe_compress_try_process(tp: list, step_goal: str) -> list:
     """如果 try_process 超过 token 阈值，把旧条目压缩成一条摘要。保留最近 1 对 request+result。"""
     text = json.dumps(tp, ensure_ascii=False, default=str)
     token_count = estimate_tokens(text)
-    if token_count < _TRY_PROCESS_MAX_TOKENS:
+    if token_count < TRY_PROCESS_MAX_TOKENS:
         return tp
 
     # 找到最近一对 request+result 的起始位置
@@ -69,7 +68,7 @@ def _maybe_compress_try_process(tp: list, step_goal: str) -> list:
         elif "result" in entry:
             result = entry.get("result", "")
             result_text = (
-                _message_text(result) if not isinstance(result, str) else result
+                message_text(result) if not isinstance(result, str) else result
             )[:200]
             lines.append(f"结果: {result_text}")
 
@@ -106,7 +105,7 @@ def _try_process_to_messages(system_prompt: str, tp: list) -> list:
             tool_name = entry.get("tool", "")
             result = entry.get("result", "")
             result_text = (
-                _message_text(result) if not isinstance(result, str) else result
+                message_text(result) if not isinstance(result, str) else result
             )
             call_id = pending_tool_call_id or f"call_{i}"
             pending_tool_call_id = None
@@ -146,20 +145,6 @@ async def _execute_tool_safe(tool: Any, args: dict) -> Any:
         return result
     except Exception:
         raise
-
-
-def _message_text(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: List[str] = []
-        for item in content:
-            if isinstance(item, dict) and item.get("type") == "text":
-                parts.append(str(item.get("text") or ""))
-            else:
-                parts.append(str(item))
-        return "\n".join(parts)
-    return str(content or "")
 
 
 # ---------------- main node ----------------
@@ -250,14 +235,14 @@ async def _run_executor_loop(
     tool_call_count: int,
     thread_id: str,
 ) -> Dict[str, Any]:
-    for i in range(_MAX_TOOL_CALLS - tool_call_count):
+    for i in range(TICKET_EXECUTOR_MAX_TOOL_CALLS - tool_call_count):
         # --- model ---
-        if tool_call_count + i >= _MAX_TOOL_CALLS - 1:
+        if tool_call_count + i >= TICKET_EXECUTOR_MAX_TOOL_CALLS - 1:
             available_tools = [finish_step_tool, ask_user_tool]
             messages.append(
                 SystemMessage(
                     content=(
-                        f"已达到工具调用上限（{_MAX_TOOL_CALLS} 次）。必须调用 finish_step 结束本步骤，step_status 设为 pending。"
+                        f"已达到工具调用上限（{TICKET_EXECUTOR_MAX_TOOL_CALLS} 次）。必须调用 finish_step 结束本步骤，step_status 设为 pending。"
                     )
                 )
             )
@@ -372,7 +357,7 @@ async def _run_executor_loop(
                 thread_id,
                 tool_name,
                 tool_call_count + i + 1,
-                _MAX_TOOL_CALLS,
+                TICKET_EXECUTOR_MAX_TOOL_CALLS,
             )
 
             tool = tool_map.get(tool_name)
@@ -403,7 +388,7 @@ async def _run_executor_loop(
             try_process.append({"tool": tool_name, "args": tool_args})
             try_process.append({"tool": tool_name, "result": result})
             result_text = (
-                _message_text(result) if not isinstance(result, str) else result
+                message_text(result) if not isinstance(result, str) else result
             )
             messages.append(
                 ToolMessage(
@@ -424,6 +409,6 @@ async def _run_executor_loop(
     logger.warning("[executor_node] thread_id=%s exceeded_max_tool_calls", thread_id)
     step["try_process"] = try_process
     step["step_status"] = "pending"
-    step["failed_reason"] = f"exceeded_max_tool_calls({_MAX_TOOL_CALLS})"
+    step["failed_reason"] = f"exceeded_max_tool_calls({TICKET_EXECUTOR_MAX_TOOL_CALLS})"
     steps[step_idx] = step
     return {"steps": steps, "slots": existing_slots, "current_step_index": step_idx}

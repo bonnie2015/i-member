@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 from uuid import uuid4
 
+from app.config.constants import SERVICE_MEMORY_KEEP_COUNT, SERVICE_MEMORY_TTL_SECONDS
 from app.config.logging import get_logger
 from app.config.redis import get_optional_redis_client
 from app.config.redis_keys import (
@@ -12,9 +13,6 @@ from app.config.redis_keys import (
 )
 
 logger = get_logger("service_memory")
-
-_RECENT_SERVICE_MEMORY_KEEP = 10
-_SERVICE_MEMORY_TTL_SECONDS = 2 * 24 * 60 * 60
 
 
 def _recent_services_key(user_id: str, thread_id: str) -> str:
@@ -63,10 +61,10 @@ async def save_service_memory(
             "service_id": service_id,
         }
         await redis.rpush(recent_key, json.dumps(new_entry, ensure_ascii=False))
-        await redis.expire(recent_key, _SERVICE_MEMORY_TTL_SECONDS)
+        await redis.expire(recent_key, SERVICE_MEMORY_TTL_SECONDS)
 
         total = await redis.llen(recent_key)
-        while total > _RECENT_SERVICE_MEMORY_KEEP:
+        while total > SERVICE_MEMORY_KEEP_COUNT:
             await redis.lpop(recent_key)
             total -= 1
     except Exception as e:

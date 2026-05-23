@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import json
 from typing import Any, Dict, List
 
@@ -24,12 +23,11 @@ from app.tools import (
 )
 from app.tools.memory_tools import get_memory_tools
 from app.tools.rag_tools import get_size_guide_tools
+from app.config.constants import RECOMMEND_MAX_TOOL_BLOCKS, RECOMMEND_MAX_TOOL_CALLS
+from app.utils.message_utils import message_text
 from app.config.logging import get_logger
 
 logger = get_logger("recommend_agent")
-
-_MAX_TOOL_BLOCKS = 2
-_MAX_TOOL_CALLS = 3
 _LANGGRAPH_RECURSION_REPLY = "Sorry, need more steps to process this request."
 _HAS_PRODUCT_FALLBACK = "找到了这几款，看看有没有喜欢的？"
 _NO_PRODUCT_FALLBACK = "暂时没有找到合适的商品，能不能提供更多信息让我帮你找找看？"
@@ -40,20 +38,6 @@ _NO_PRODUCT_FALLBACK = "暂时没有找到合适的商品，能不能提供更�
 # ============================================================
 
 
-def _message_text(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts: List[str] = []
-        for item in content:
-            if isinstance(item, dict) and item.get("type") == "text":
-                parts.append(str(item.get("text") or ""))
-            else:
-                parts.append(str(item))
-        return "\n".join(parts)
-    return str(content or "")
-
-
 def _tool_name(tool: Any) -> str:
     return str(getattr(tool, "name", tool.__class__.__name__) or "").strip()
 
@@ -61,16 +45,11 @@ def _tool_name(tool: Any) -> str:
 def _parse_payload(content: Any) -> Dict[str, Any] | None:
     if isinstance(content, dict):
         return content
-    text = _message_text(content).strip()
+    text = message_text(content).strip()
     if not text:
         return None
     try:
         parsed = json.loads(text)
-        return parsed if isinstance(parsed, dict) else None
-    except Exception:
-        pass
-    try:
-        parsed = ast.literal_eval(text)
         return parsed if isinstance(parsed, dict) else None
     except Exception:
         return None
@@ -269,7 +248,7 @@ def _extract_direct_ai_reply(messages: List[BaseMessage]) -> str:
             continue
         if list(getattr(msg, "tool_calls", None) or []):
             continue
-        reply = _message_text(getattr(msg, "content", "")).strip()
+        reply = message_text(getattr(msg, "content", "")).strip()
         if not reply or reply == _LANGGRAPH_RECURSION_REPLY:
             continue
         return reply.split("\n\n[products]", 1)[0].strip()
@@ -289,7 +268,7 @@ class RecommendAgent(BaseAgent):
                 role="recommend",
                 timeout_seconds=70,
                 max_recursion=12,
-                max_tool_calls=_MAX_TOOL_CALLS,
+                max_tool_calls=RECOMMEND_MAX_TOOL_CALLS,
                 fallback_reply=_NO_PRODUCT_FALLBACK,
             )
         super().__init__(config)
@@ -348,11 +327,11 @@ class RecommendAgent(BaseAgent):
             idx = nxt
         if not blocks:
             return messages
-        return [m for b in blocks[-_MAX_TOOL_BLOCKS:] for m in b]
+        return [m for b in blocks[-RECOMMEND_MAX_TOOL_BLOCKS:] for m in b]
 
     @staticmethod
     def _tool_control_message(tool_count: int) -> SystemMessage | None:
-        remaining = _MAX_TOOL_CALLS - tool_count
+        remaining = RECOMMEND_MAX_TOOL_CALLS - tool_count
         if remaining == 1:
             return SystemMessage(
                 content=(
@@ -368,7 +347,7 @@ class RecommendAgent(BaseAgent):
             )
         return SystemMessage(
             content=(
-                f"【系统指令】本轮最多 {_MAX_TOOL_CALLS} 次工具调用，你已使用 {tool_count} 次，还需搜索的话尽快。"
+                f"【系统指令】本轮最多 {RECOMMEND_MAX_TOOL_CALLS} 次工具调用，你已使用 {tool_count} 次，还需搜索的话尽快。"
             )
         )
 
@@ -409,19 +388,6 @@ class RecommendAgent(BaseAgent):
                 self.config.max_tool_calls,
                 [_tool_name(t) for t in available],
             )
-            # DEBUG: 输出 state 中每条消息的类型，确认计数是否正确
-            _msg_types = [type(m).__name__ for m in msgs]
-            _has_tool_calls = [
-                len(list(getattr(m, "tool_calls", None) or []))
-                for m in msgs
-                if isinstance(m, AIMessage)
-            ]
-            logger.info(
-                "[recommend_agent] thread_id=%s _model_fn msg_types=%s ai_tool_call_counts=%s",
-                input.thread_id,
-                _msg_types,
-                _has_tool_calls,
-            )
             model = get_llm("recommend").bind_tools(available, tool_choice="auto")
             return with_usage_logging(
                 model,
@@ -442,25 +408,6 @@ class RecommendAgent(BaseAgent):
             control = self._tool_control_message(state_count)
             if control is not None:
                 compacted = [*compacted, control]
-            # DEBUG: 看 compact 后实际发给模型的消息
-            _compact_types = [type(m).__name__ for m in compacted]
-            _compact_content_preview = [
-                (type(m).__name__, str(getattr(m, "content", ""))[:80])
-                for m in compacted
-            ]
-            logger.info(
-                "[recommend_agent] thread_id=%s compact: state_msgs=%s state_tool_count=%s llm_input_count=%s types=%s",
-                input.thread_id,
-                len(msgs),
-                state_count,
-                len(compacted),
-                _compact_types,
-            )
-            logger.info(
-                "[recommend_agent] thread_id=%s llm_input_preview=%s",
-                input.thread_id,
-                _compact_content_preview,
-            )
             return {"llm_input_messages": compacted}
 
         agent = create_react_agent(
@@ -502,32 +449,7 @@ class RecommendAgent(BaseAgent):
         )
 
         messages = list((agent_result or {}).get("messages") or [])
-        tool_results = len([m for m in messages if isinstance(m, ToolMessage)])
-        # DEBUG: 最终消息结构
-        _final_types = [
-            (type(m).__name__, len(list(getattr(m, "tool_calls", None) or [])))
-            for m in messages
-        ]
-        _last_msg = messages[-1] if messages else None
-        _last_has_tool_calls = (
-            bool(list(getattr(_last_msg, "tool_calls", None) or []))
-            if _last_msg
-            else False
-        )
-        logger.info(
-            "[recommend_agent] thread_id=%s done messages=%s tool_results=%s",
-            input.thread_id,
-            len(messages),
-            tool_results,
-        )
-        logger.info(
-            "[recommend_agent] thread_id=%s final_msg_types=%s last_msg_type=%s last_has_tool_calls=%s",
-            input.thread_id,
-            _final_types,
-            type(_last_msg).__name__ if _last_msg else "None",
-            _last_has_tool_calls,
-        )
-
+        self._result_messages = messages
         # 提取结果
         final = _extract_reply_result(messages, recommend_context)
         if final is not None:

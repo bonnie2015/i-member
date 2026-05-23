@@ -1,5 +1,73 @@
 [
   {
+    "order_id": "ORD-TEST-001",
+    "user_id": "test_user_001",
+    "status": "delivered",
+    "status_label": "已签收",
+    "amount": 2680,
+    "items_summary": "MEXICO 66 SD 休闲鞋 米色/黑色 / MEXICO 66 SD VIN 休闲鞋 白色/蓝色",
+    "created_at": "2026-05-15T10:00:00+08:00",
+    "paid_at": "2026-05-15T10:02:00+08:00",
+    "signed_at": "2026-05-18T16:30:00+08:00",
+    "source_channel": "app",
+    "receiver_city": "上海市",
+    "items": [
+      {
+        "order_item_id": "OI-TEST-001-1",
+        "product_id": 56077,
+        "color_id": 19297,
+        "sku_id": "6936780192786",
+        "style": "1183A872-255",
+        "size": "37",
+        "name": "MEXICO 66 SD 休闲鞋 米色/黑色",
+        "qty": 1,
+        "price": 1290,
+        "image": "https://assetsprod.onitsukatiger.com/goods/1183A872-255/1183A872-255-1.jpg",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/56077-19297"
+      },
+      {
+        "order_item_id": "OI-TEST-001-2",
+        "product_id": 46730,
+        "color_id": 5508,
+        "sku_id": "6942439509256",
+        "style": "1183C015-104",
+        "size": "37",
+        "name": "MEXICO 66 SD VIN 休闲鞋 白色/蓝色",
+        "qty": 1,
+        "price": 1390,
+        "image": "https://assetsprod.onitsukatiger.com/goods/1183C015-104/1183C015-104-1.jpg",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/46730-5508"
+      }
+    ]
+  },
+  {
+    "order_id": "ORD-TEST-002",
+    "user_id": "test_user_001",
+    "status": "paid",
+    "status_label": "已付款，待发货",
+    "amount": 990,
+    "items_summary": "MEXICO 66 休闲鞋 白色",
+    "created_at": "2026-05-20T14:30:00+08:00",
+    "paid_at": "2026-05-20T14:31:00+08:00",
+    "source_channel": "wechat",
+    "receiver_city": "上海市",
+    "items": [
+      {
+        "order_item_id": "OI-TEST-002-1",
+        "product_id": 46641,
+        "color_id": 5101,
+        "sku_id": "6936780191093",
+        "style": "1183A869-100",
+        "size": "37",
+        "name": "MEXICO 66 休闲鞋 白色",
+        "qty": 1,
+        "price": 990,
+        "image": "https://assetsprod.onitsukatiger.com/goods/1183A869-100/1183A869-100-1.jpg",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/46641-5101"
+      }
+    ]
+  },
+  {
     "order_id": "N20260501000088",
     "user_id": "bonnie20260412",
     "status": "shipping",

@@ -1,16 +1,9 @@
 <skills>
     <skill>
-        <name>equity-ticket</name>
-        <description>处理升级申请与升级异常申诉的发起和继续处理。</description>
-        <available_tools>get_user_level, create_ticket, get_ticket, get_tickets</available_tools>
-        <clarify_labels>升级申请, 升级异常申诉</clarify_labels>
-        <location>app/app/skills/ticket/equity-ticket/SKILL.md</location>
-    </skill>
-    <skill>
         <name>refund-ticket</name>
-        <description>处理退货/换货相关诉求。</description>
-        <available_tools>get_user_orders, onitsuka_get_product_detail, create_ticket, get_ticket, get_tickets, onitsuka_search_products_hybrid</available_tools>
-        <clarify_labels>退货, 换货, 退换货进度查询</clarify_labels>
+        <description>处理退货相关诉求。</description>
+        <available_tools>get_user_orders, onitsuka_get_product_detail, create_ticket, get_ticket, get_tickets, onitsuka_search_products_hybrid, read_file</available_tools>
+        <clarify_labels>退货, 退货进度查询</clarify_labels>
         <location>app/app/skills/ticket/refund-ticket/SKILL.md</location>
     </skill>
     <skill>

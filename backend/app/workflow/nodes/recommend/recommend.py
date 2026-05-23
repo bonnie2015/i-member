@@ -9,6 +9,7 @@ from app.agents.base import AgentInput, AgentStatus
 from app.agents.recommend_agent import recommend_agent
 from app.tools.business.execution_context import business_execution_context
 from app.config.logging import get_logger
+from app.config.constants import RECOMMEND_MAX_ROUNDS
 from app.workflow.state import AgentState
 from app.agents.recommend_guard_agent import recommend_guard_agent
 
@@ -54,9 +55,23 @@ async def recommend_node(state: AgentState) -> Dict[str, Any]:
     service_state = state.get("service_state") or {}
     prev_recommend_context = service_state.get("recommend_context") or {}
 
-    logger.info(
-        "[recommend_node] thread_id=%s round=%s start", thread_id, len(trace) + 1
-    )
+    round_num = len(trace) + 1
+    logger.info("[recommend_node] thread_id=%s round=%s start", thread_id, round_num)
+
+    # 0. 轮次上限：超过则强制结束，走后处理
+    if len(trace) >= RECOMMEND_MAX_ROUNDS:
+        reply = "推荐了好多商品，但也要记得理性购物哦～休息一会儿吧。"
+        logger.info(
+            "[recommend_node] thread_id=%s round_limit reached=%s", thread_id, round_num
+        )
+        return {
+            "final_reply": reply,
+            "final_status": "success",
+            "current_subgraph": None,
+            "trace": trace,
+            "messages": [*state["messages"], AIMessage(content=reply)],
+            "service_state": None,
+        }
 
     # 1. guard：判断任务是否已完成，注入上轮的 recommend_context 和最新 trace
     guard_result = await recommend_guard_agent.run(
@@ -76,7 +91,6 @@ async def recommend_node(state: AgentState) -> Dict[str, Any]:
     task_completed = bool(guard_data.get("task_completed"))
 
     message_id = f"recommend:{thread_id}:{uuid4().hex}"
-    round_num = len(trace) + 1
 
     if task_completed:
         reply = (

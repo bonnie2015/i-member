@@ -13,14 +13,12 @@ from app.prompts.prompt_builder import (
     UserFactsRuntimePayload,
     build_user_facts_extraction_system_prompt,
 )
+from app.config.constants import USER_FACTS_LIMIT, USER_FACTS_TTL_SECONDS
 from app.config.logging import get_logger
 from app.config.redis import get_optional_redis_client
 from app.config.redis_keys import USER_FACTS_KEY
 
 logger = get_logger("user_facts")
-
-_CORE_FACTS_LIMIT = 8
-_USER_FACTS_TTL_SECONDS = 30 * 24 * 60 * 60
 
 
 class StoredUserFact(BaseModel):
@@ -179,7 +177,7 @@ def _apply_fact_changes(
     current_keys = {item.fact.casefold() for item in ordered_existing}
     additions = _dedupe_texts(
         add_facts,
-        limit=_CORE_FACTS_LIMIT,
+        limit=USER_FACTS_LIMIT,
         exclude=current_keys,
     )
     for fact in additions:
@@ -191,7 +189,7 @@ def _apply_fact_changes(
         )
         current_keys.add(fact.casefold())
 
-    return ordered_existing[:_CORE_FACTS_LIMIT]
+    return ordered_existing[:USER_FACTS_LIMIT]
 
 
 async def save_user_facts_store(
@@ -220,7 +218,7 @@ async def save_user_facts_store(
         await redis.set(
             _user_facts_key(user_id),
             json.dumps(store.model_dump(mode="json"), ensure_ascii=False),
-            ex=_USER_FACTS_TTL_SECONDS,
+            ex=USER_FACTS_TTL_SECONDS,
         )
     except Exception as e:
         logger.warning("[user_facts] save store failed for %s: %s", user_id, e)
@@ -270,8 +268,8 @@ async def _extract_user_fact_changes(
         provider="deepseek",
     )
     return UserFactsExtractionOutput(
-        add_facts=_dedupe_texts(response.add_facts, limit=_CORE_FACTS_LIMIT),
-        delete_facts=_dedupe_texts(response.delete_facts, limit=_CORE_FACTS_LIMIT),
+        add_facts=_dedupe_texts(response.add_facts, limit=USER_FACTS_LIMIT),
+        delete_facts=_dedupe_texts(response.delete_facts, limit=USER_FACTS_LIMIT),
     )
 
 

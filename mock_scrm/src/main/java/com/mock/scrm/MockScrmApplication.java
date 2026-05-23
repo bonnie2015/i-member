@@ -91,15 +91,20 @@ public class MockScrmApplication {
 
     @GetMapping("/order")
     public Map<String, Object> listOrders(
+            @RequestParam(value = "user_id", required = false) String userId,
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "keyword", required = false) String keyword,
             @RequestParam(value = "start_time", required = false) String startTime,
             @RequestParam(value = "end_time", required = false) String endTime,
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "page_size", defaultValue = "20") int pageSize) {
+        String normalizedUserId = text(userId).toLowerCase();
         String normalizedKeyword = text(keyword).toLowerCase();
         List<Map<String, Object>> filtered = new ArrayList<>();
         for (Map<String, Object> order : listAt(state, "orders")) {
+            if (!normalizedUserId.isEmpty() && !text(order.get("user_id")).toLowerCase().equals(normalizedUserId)) {
+                continue;
+            }
             if (!text(status).isEmpty() && !text(order.get("status")).equals(status)) {
                 continue;
             }

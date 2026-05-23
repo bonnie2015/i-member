@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from langchain_core.messages import AIMessage, HumanMessage
 
@@ -9,24 +9,15 @@ from app.agents.base import AgentInput
 from app.agents.qa_agent import qa_agent
 from app.agents.summary_agent import summary_agent
 from app.config.logging import get_logger
+from app.config.constants import MAX_QA_TOKENS
 from app.llm.runtime import estimate_tokens
+from app.utils.message_utils import last_user_message_text
 from app.workflow.state import AgentState
 
 logger = get_logger("qa_node")
-
-_MAX_QA_TOKENS = 2000
 _FALLBACK_REPLY = (
     "我先帮您确认一下相关信息，您也可以把问题再说具体一点，我继续为您处理。"
 )
-
-
-def _last_user_message(messages: List) -> str:
-    for msg in reversed(messages):
-        if isinstance(msg, HumanMessage):
-            content = str(getattr(msg, "content", "") or "").strip()
-            if content:
-                return content
-    return ""
 
 
 async def qa_node(state: AgentState) -> Dict[str, Any]:
@@ -43,7 +34,7 @@ async def qa_node(state: AgentState) -> Dict[str, Any]:
             "messages": [AIMessage(content=_FALLBACK_REPLY)],
         }
 
-    current_query = _last_user_message(messages)
+    current_query = last_user_message_text(state)
     if not current_query:
         return {
             "final_reply": _FALLBACK_REPLY,
@@ -59,7 +50,7 @@ async def qa_node(state: AgentState) -> Dict[str, Any]:
         ],
         ensure_ascii=False,
     )
-    if estimate_tokens(msg_text) <= _MAX_QA_TOKENS:
+    if estimate_tokens(msg_text) <= MAX_QA_TOKENS:
         result = await qa_agent.run(
             AgentInput(
                 user_query=current_query,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import List, Dict, Any, Optional, Literal, TypedDict
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 

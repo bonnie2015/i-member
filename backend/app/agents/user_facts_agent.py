@@ -66,6 +66,7 @@ class UserFactsAgent(BaseAgent):
             status=AgentStatus.SUCCESS,
             data={
                 "fact_count": len(store.facts),
+                "facts": [f.fact for f in store.facts],
             },
         )
 

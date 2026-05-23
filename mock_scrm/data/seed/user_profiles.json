@@ -1,4 +1,41 @@
 {
+  "test_user_001": {
+    "user_id": "test_user_001",
+    "profile": {
+      "basic_info": {
+        "name": "TestUser",
+        "gender": "male",
+        "age_range": "25-30",
+        "city": "上海市",
+        "member_level": "Silver"
+      },
+      "value_segment": {
+        "rfm_level": "潜力",
+        "lifetime_value": 2680,
+        "avg_order_value": 1340
+      },
+      "preferences": {
+        "product_categories": ["鞋类"],
+        "product_series": ["MEXICO 66"],
+        "style_keywords": ["休闲", "运动"],
+        "color_preferences": ["白色", "蓝色"],
+        "color_avoid": [],
+        "size": "37",
+        "price_sensitivity": "medium"
+      },
+      "behavior_summary": {
+        "last_active_time": "2026-05-20T14:30:00+08:00",
+        "active_frequency": "medium",
+        "favorite_channels": ["微信小程序"]
+      },
+      "social": {
+        "is_koc": false,
+        "influence_score": 20,
+        "active_groups": []
+      }
+    },
+    "last_update": "2026-05-20T14:30:00+08:00"
+  },
   "bonnie20260412": {
     "user_id": "bonnie20260412",
     "profile": {

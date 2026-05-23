@@ -9,7 +9,6 @@ from langgraph.errors import GraphInterrupt, GraphRecursionError
 from pydantic import BaseModel, Field
 
 
-
 class AgentStatus(str, Enum):
     SUCCESS = "success"
     CONTINUE = "continue"  # 子图未结束，等待下轮用户消息

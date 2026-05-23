@@ -9,6 +9,7 @@ from app.tools import (
     onitsuka_get_product_detail,
 )
 from app.tools.memory_tools import get_memory_tools
+from app.tools.file_tools import read_file
 
 
 def _tool_registry() -> Dict[str, Any]:
@@ -18,6 +19,7 @@ def _tool_registry() -> Dict[str, Any]:
             *get_scrm_tools(),
             onitsuka_get_product_detail,
             *get_memory_tools(),
+            read_file,
         ]
     }
 
