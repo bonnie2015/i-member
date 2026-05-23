@@ -49,10 +49,15 @@ services:
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
       - LLAMA_CLOUD_API_KEY=${LLAMA_CLOUD_API_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
+      - LANGFUSE_BASE_URL=${LANGFUSE_BASE_URL:-http://langfuse-web:3000}
       - DEBUG=${DEBUG:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_DIR=${LOG_DIR:-/app/logs}
     volumes:
       - ./backend/app:/app/app
+      - ./backend/tests:/app/tests
       - ./backend/logs:/app/logs
       - ./data:/app/data:ro
       - ./data/rag_docs:/app/data/rag_docs
@@ -82,6 +87,9 @@ services:
       - SCRM_URL=${SCRM_URL}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
+      - LANGFUSE_BASE_URL=${LANGFUSE_BASE_URL:-http://langfuse-web:3000}
       - DEBUG=${DEBUG:-false}
       - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
     volumes:
