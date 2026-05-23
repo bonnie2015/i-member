@@ -1,0 +1,162 @@
+[
+  {
+    "agent": "executor",
+    "task_id": "exec_001",
+    "description": "正常工具调用→提取槽位→finish",
+    "trials": 1,
+    "setup": {
+      "run_mode": "node",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "current_step_index": 0,
+        "slots": {},
+        "expected_slots": [{"name": "order_id"}, {"name": "product_name"}, {"name": "reason"}],
+        "steps": [
+          {
+            "goal": "查询订单 ORD-TEST-002 的详情和商品信息，确认后直接 finish（单商品无需选）",
+            "completion_signal": "已获取订单详情并确认可退货商品",
+            "target_slots": ["order_id", "product_name", "reason"],
+            "available_tools": ["get_user_orders", "get_order_detail"],
+            "step_status": "pending",
+            "failed_reason": "",
+            "failed_type": "",
+            "try_process": []
+          }
+        ]
+      }
+    },
+    "expect": {
+      "step_status": "done",
+      "try_process_contains": ["get_order_detail", "finish_step"],
+      "slots": {"order_id": "ORD-TEST-002", "product_name": "MEXICO 66 休闲鞋 白色"}
+    }
+  },
+  {
+    "agent": "executor",
+    "task_id": "exec_002",
+    "description": "信息不足→ask_user 中断",
+    "trials": 1,
+    "setup": {
+      "run_mode": "node",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "current_step_index": 0,
+        "slots": {},
+        "expected_slots": [{"name": "order_id"}],
+        "steps": [
+          {
+            "goal": "确认用户要处理的订单，但当前缺少订单号，需向用户询问",
+            "completion_signal": "",
+            "target_slots": ["order_id"],
+            "available_tools": [],
+            "step_status": "pending",
+            "failed_reason": "",
+            "failed_type": "",
+            "try_process": []
+          }
+        ]
+      }
+    },
+    "expect": {
+      "try_process_contains": ["ask_user"]
+    }
+  },
+  {
+    "agent": "executor",
+    "task_id": "exec_003",
+    "description": "无法完成→失败/挂起",
+    "trials": 1,
+    "setup": {
+      "run_mode": "node",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "current_step_index": 0,
+        "slots": {},
+        "expected_slots": [{"name": "order_id"}],
+        "steps": [
+          {
+            "goal": "查询不存在的订单 XYZ-NOT-EXIST，确认无法继续后结束步骤（finish_step 时 step_status 设为 failed 或 pending）",
+            "completion_signal": "",
+            "target_slots": ["order_id"],
+            "available_tools": ["get_user_orders"],
+            "step_status": "pending",
+            "failed_reason": "",
+            "failed_type": "",
+            "try_process": []
+          }
+        ]
+      }
+    },
+    "expect": {
+      "try_process_contains": ["get_user_orders", "finish_step"]
+    }
+  },
+  {
+    "agent": "executor",
+    "task_id": "exec_004",
+    "description": "用户取消步骤",
+    "trials": 1,
+    "setup": {
+      "run_mode": "node",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "current_step_index": 0,
+        "slots": {},
+        "expected_slots": [],
+        "steps": [
+          {
+            "goal": "用户希望取消当前操作，直接结束（调用 finish_step，step_status=cancelled）",
+            "completion_signal": "",
+            "target_slots": [],
+            "available_tools": [],
+            "step_status": "pending",
+            "failed_reason": "",
+            "failed_type": "",
+            "try_process": []
+          }
+        ]
+      }
+    },
+    "expect": {
+      "try_process_contains": ["finish_step"]
+    }
+  },
+  {
+    "agent": "executor",
+    "task_id": "exec_005",
+    "description": "模拟恢复：消费 ask_user 结果继续执行",
+    "trials": 1,
+    "setup": {
+      "run_mode": "node",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "current_step_index": 0,
+        "slots": {},
+        "expected_slots": [{"name": "order_id"}, {"name": "product_name"}],
+        "steps": [
+          {
+            "goal": "用户已回复订单号为 ORD-TEST-002，查询订单确认商品信息后 finish",
+            "completion_signal": "已确认订单和退货商品",
+            "target_slots": ["order_id", "product_name"],
+            "available_tools": ["get_user_orders", "get_order_detail"],
+            "step_status": "pending",
+            "failed_reason": "",
+            "failed_type": "",
+            "try_process": [
+              {"tool": "ask_user", "args": {"reply": "请问您的订单号是什么？", "interaction_type": null, "candidate_keys": null}, "interrupt_payload": {"reply": "请问您的订单号是什么？", "interaction": null}},
+              {"tool": "ask_user", "result": "ORD-TEST-002"}
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "try_process_contains": ["get_order_detail"]
+    }
+  }
+]

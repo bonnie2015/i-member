@@ -1,0 +1,53 @@
+[
+  {
+    "agent": "router",
+    "task_id": "router_001",
+    "description": "退货意图",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "messages": [{"role": "human", "content": "我要退货"}],
+        "user_id": "test_user_001",
+        "thread_id": "auto"
+      }
+    },
+    "expect": {
+      "intent": "ticket"
+    }
+  },
+  {
+    "agent": "router",
+    "task_id": "router_002",
+    "description": "商品投诉",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "messages": [{"role": "human", "content": "这个东西也太差了"}],
+        "user_id": "test_user_001",
+        "thread_id": "auto"
+      }
+    },
+    "expect": {
+      "intent": "ticket"
+    }
+  },
+  {
+    "agent": "router",
+    "task_id": "router_003",
+    "description": "送礼推荐",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "messages": [{"role": "human", "content": "有没有适合送给朋友的鞋"}],
+        "user_id": "test_user_001",
+        "thread_id": "auto"
+      }
+    },
+    "expect": {
+      "intent": "recommend"
+    }
+  }
+]

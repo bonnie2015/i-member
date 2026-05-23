@@ -1,0 +1,38 @@
+[
+  {
+    "task_id": "e2e_rec_001",
+    "description": "正常推荐：接受并感谢",
+    "scenario": "你想找一双适合跑步的鞋，预算500-1500元。系统推荐后你看中了一双，正常接受。选定了就结束，不要说下单购买。",
+    "max_turns": 12,
+    "trials": 1,
+    "setup": {"user_id": "test_user_001"},
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_rec_002",
+    "description": "挑剔型：一直说不好看，不给方向",
+    "scenario": "你想找一双休闲鞋，但系统推荐的你都觉得不好看、不是我想要的风格，又不肯说你到底想要什么样的。一直挑刺到推荐结束，不要说下单。",
+    "max_turns": 25,
+    "trials": 1,
+    "setup": {"user_id": "test_user_001"},
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_rec_003",
+    "description": "选定商品后求搭配",
+    "scenario": "你先让系统推荐一双休闲鞋，从中选了一双白色的。然后让系统帮你找适合搭配这双鞋的裤子或上衣。不要说下单购买。",
+    "max_turns": 20,
+    "trials": 1,
+    "setup": {"user_id": "test_user_001"},
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_rec_004",
+    "description": "反复对比：看更多、看其他颜色",
+    "scenario": "你想找一双日常穿的鞋。系统第一次推荐后你说想看更多，第二次推荐后你挑中一款但来回对比颜色（白色、黑色、棕色都看看），可能还会问有没有其他尺码。最后选定就结束，不要说下单。",
+    "max_turns": 22,
+    "trials": 1,
+    "setup": {"user_id": "test_user_001"},
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  }
+]

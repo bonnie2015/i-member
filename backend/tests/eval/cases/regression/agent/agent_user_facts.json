@@ -1,0 +1,87 @@
+[
+  {
+    "agent": "user_facts",
+    "task_id": "pp_004",
+    "description": "新增事实：从对话提取用户偏好",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "seed_facts": [],
+        "messages": [
+          {"role": "human", "content": "你好，我平时穿37码的鞋，比较喜欢白色系的"},
+          {"role": "assistant", "content": "好的，我记住了，37码白色系"}
+        ]
+      }
+    },
+    "expect": {
+      "facts_contains": ["37", "白色"]
+    }
+  },
+  {
+    "agent": "user_facts",
+    "task_id": "pp_005",
+    "description": "删除事实：用户改变偏好",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "seed_facts": ["喜欢白色鞋子", "穿37码鞋"],
+        "messages": [
+          {"role": "human", "content": "白色不好看了，我现在喜欢黑色的鞋"},
+          {"role": "assistant", "content": "好的，您现在的偏好是黑色系"}
+        ]
+      }
+    },
+    "expect": {
+      "facts_contains": ["黑色"],
+      "facts_not_contains": ["白色"]
+    }
+  },
+  {
+    "agent": "user_facts",
+    "task_id": "pp_006",
+    "description": "不该增：不提取无关噪音",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "seed_facts": [],
+        "messages": [
+          {"role": "human", "content": "今天天气不错，我想退货，订单号 ORD-TEST-001"},
+          {"role": "assistant", "content": "好的，我来处理您的退货"}
+        ]
+      }
+    },
+    "expect": {
+      "facts_not_contains": ["天气"]
+    }
+  },
+  {
+    "agent": "user_facts",
+    "task_id": "pp_007",
+    "description": "不该删：不误删已有事实",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "seed_facts": ["穿37码鞋", "喜欢白色"],
+        "messages": [
+          {"role": "human", "content": "这款鞋偏大还是偏小？我穿37码"},
+          {"role": "assistant", "content": "这款尺码标准的，37码应该合适"}
+        ]
+      }
+    },
+    "expect": {
+      "facts_contains": ["37", "白色"]
+    }
+  }
+]

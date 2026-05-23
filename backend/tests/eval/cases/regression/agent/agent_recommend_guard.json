@@ -1,0 +1,103 @@
+[
+  {
+    "agent": "recommend_guard",
+    "task_id": "recg_001",
+    "description": "任务结束：用户满意并道谢",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "messages": [
+          {"role": "assistant", "content": "为您推荐了MEXICO 66 SD 米色款，您觉得怎么样？"},
+          {"role": "human", "content": "就这双了，谢谢！很满意"}
+        ]
+      }
+    },
+    "expect": {
+      "task_completed": true
+    }
+  },
+  {
+    "agent": "recommend_guard",
+    "task_id": "recg_002",
+    "description": "继续推荐：用户想看更多",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "messages": [
+          {"role": "assistant", "content": "为您推荐了MEXICO 66 白色款和棕色款"},
+          {"role": "human", "content": "还有没有其他颜色？"}
+        ]
+      }
+    },
+    "expect": {
+      "task_completed": false,
+      "summary_not_empty": true
+    }
+  },
+  {
+    "agent": "recommend_guard",
+    "task_id": "recg_003",
+    "description": "锚点抽取：从上一轮trace提取锚点商品",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "extra": {
+          "trace": [
+            {"tool": "onitsuka_search_products_hybrid", "args": {"query": "跑步鞋"}, "result": [{"product_id": 56077, "color_id": 19297, "name": "MEXICO 66 SD 休闲鞋 米色/黑色", "price": 1290}, {"product_id": 46730, "color_id": 5508, "name": "MEXICO 66 SD VIN 休闲鞋 白色/蓝色", "price": 1390}]},
+            {"tool": "reply_with_products", "args": {"products": [{"product_id": 56077, "color_id": 19297}]}, "result": {"reply": "为您推荐MEXICO 66 SD 米色款"}}
+          ]
+        },
+        "messages": [
+          {"role": "assistant", "content": "为您推荐MEXICO 66 SD 米色款和白色款"},
+          {"role": "human", "content": "白色那款看看"}
+        ]
+      }
+    },
+    "expect": {
+      "anchor_products_not_empty": true,
+      "anchor_products_have_field": "product_id"
+    }
+  },
+  {
+    "agent": "recommend_guard",
+    "task_id": "recg_004",
+    "description": "多轮压缩：上轮context+新trace正确合并摘要",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "extra": {
+          "recommend_context": {
+            "summary": "上一轮为用户推荐了MEXICO 66 SD 米色款，用户觉得不错",
+            "anchor_products": [{"product_id": 56077, "color_id": 19297, "name": "MEXICO 66 SD 米色/黑色"}],
+            "cursor": {}
+          },
+          "trace": [
+            {"tool": "onitsuka_search_products_hybrid", "args": {"query": "白色休闲鞋"}, "result": [{"product_id": 46641, "color_id": 5101, "name": "MEXICO 66 休闲鞋 白色", "price": 990}]},
+            {"tool": "reply_with_products", "args": {"products": [{"product_id": 46641, "color_id": 5101}]}, "result": {"reply": "为您推荐白色款"}}
+          ]
+        },
+        "messages": [
+          {"role": "assistant", "content": "为您推荐MEXICO 66 白色款"},
+          {"role": "human", "content": "可以，白色也不错"}
+        ]
+      }
+    },
+    "expect": {
+      "summary_not_empty": true,
+      "anchor_products_not_empty": true,
+      "anchor_products_have_field": "product_id"
+    }
+  }
+]

@@ -1,0 +1,75 @@
+[
+  {
+    "agent": "guard",
+    "task_id": "guard_001",
+    "description": "信息齐全时正确选技能并提取goal",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "messages": [{"role": "human", "content": "我要退货，订单号 ORD-TEST-001，颜色不喜欢"}],
+        "user_id": "test_user_001",
+        "thread_id": "auto"
+      }
+    },
+    "expect": {
+      "guard_decision": "select_service",
+      "service_key_not_empty": true,
+      "goal_not_empty": true,
+      "goal_contains": ["ORD-TEST-001"]
+    }
+  },
+  {
+    "agent": "guard",
+    "task_id": "guard_002",
+    "description": "服务意图明确但缺细节信息，guard选服务，executor负责追问",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "messages": [{"role": "human", "content": "我想退货"}],
+        "user_id": "test_user_001",
+        "thread_id": "auto"
+      }
+    },
+    "expect": {
+      "guard_decision": "select_service",
+      "service_key_not_empty": true,
+      "goal_not_empty": true
+    }
+  },
+  {
+    "agent": "guard",
+    "task_id": "guard_003",
+    "description": "用户明确结束",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "messages": [{"role": "human", "content": "不用了谢谢"}],
+        "user_id": "test_user_001",
+        "thread_id": "auto"
+      }
+    },
+    "expect": {
+      "guard_decision": "end_service"
+    }
+  },
+  {
+    "agent": "guard",
+    "task_id": "guard_004",
+    "description": "服务类型不明确，不知道是哪种工单",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "messages": [{"role": "human", "content": "我要申请工单"}],
+        "user_id": "test_user_001",
+        "thread_id": "auto"
+      }
+    },
+    "expect": {
+      "guard_decision": "clarify"
+    }
+  }
+]

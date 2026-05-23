@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.ci
 
 # 内部文档
 docs/*
@@ -53,6 +54,7 @@ backend/logs/
 data/
 
 tests/
+!backend/tests/
 test/
 
 .trae/
@@ -60,13 +62,9 @@ test/
 .codex*/
 .DS_Store
 .claude/
-skills-snapshot.md
-*testcase*
-*test_case*
-backend/app/run_*_cases.py
-backend/app/scripts/*sampling*.json
-tmp_*case*.json
 .agents/
+skills-snapshot.md
 CLAUDE.md
 AGENTS.md
 backend/AGENTS.md
+backend/tests/eval/logs/

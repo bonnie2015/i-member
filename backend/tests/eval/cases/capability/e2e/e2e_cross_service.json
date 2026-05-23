@@ -1,0 +1,20 @@
+[
+  {
+    "task_id": "e2e_cross_001",
+    "description": "推荐过程中突然要查会员政策",
+    "scenario": "你正在让系统推荐跑步鞋，推荐到一半你突然说要查一下会员等级政策怎么升级。看看系统能不能正常切换服务。切换后如果推荐服务正常结束了，你就继续聊会员政策。",
+    "max_turns": 25,
+    "trials": 1,
+    "setup": {"user_id": "test_user_001"},
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_cross_002",
+    "description": "退货中突然想看新款",
+    "scenario": "你正在退货流程中，系统在确认退货信息时，你突然说我先不退了想看看有没有类似的新款",
+    "max_turns": 25,
+    "trials": 1,
+    "setup": {"user_id": "test_user_001"},
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  }
+]

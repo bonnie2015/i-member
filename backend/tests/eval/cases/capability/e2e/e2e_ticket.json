@@ -1,0 +1,67 @@
+[
+  {
+    "task_id": "e2e_ticket_001",
+    "description": "配合型用户退货，订单 ORD-TEST-002，颜色不喜欢",
+    "scenario": "你要退货，订单号是 ORD-TEST-002，原因是颜色不喜欢。客服问什么你配合回答什么。当客服明确告诉你退货申请已提交/处理完成后，任务就结束了，加 [END] 结束，不要继续寒暄告别。",
+    "max_turns": 15,
+    "trials": 1,
+    "setup": {
+      "user_id": "test_user_001"
+    },
+    "reference": "测试数据：用户 test_user_001。ORD-TEST-002（已付款待发货，MEXICO 66 休闲鞋 白色 ¥990×1），ORD-TEST-001（已签收，MEXICO 66 SD 米色 ¥1290 + MEXICO 66 SD VIN 白色/蓝色 ¥1390）。成功退货应创建 confirm_ticket 卡片。",
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_ticket_002",
+    "description": "不配合型用户：忘记订单号，含糊其辞",
+    "scenario": "你要退货但记不住订单号。系统问你订单号你说忘了，问原因说就是不喜欢，不太配合。如果系统主动帮你查到了订单才勉强配合确认。退货申请提交后就加 [END]，不要寒暄。",
+    "max_turns": 20,
+    "trials": 1,
+    "setup": {
+      "user_id": "test_user_001"
+    },
+    "reference": "测试数据：用户 test_user_001。ORD-TEST-002（已付款待发货，MEXICO 66 休闲鞋 白色 ¥990×1），ORD-TEST-001（已签收，MEXICO 66 SD 米色 ¥1290 + MEXICO 66 SD VIN 白色/蓝色 ¥1390）。成功退货应创建 confirm_ticket 卡片。",
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_ticket_003",
+    "description": "主动说全：一口气给全订单号、商品、原因",
+    "scenario": "你要退货，一上来就说全信息：订单号 ORD-TEST-002，MEXICO 66 白色款，37码，原因是颜色不喜欢。客服确认信息时你配合说对。退货申请提交后就加 [END]。",
+    "max_turns": 12,
+    "trials": 1,
+    "setup": {"user_id": "test_user_001"},
+    "reference": "测试数据：用户 test_user_001。ORD-TEST-002（已付款待发货，MEXICO 66 休闲鞋 白色 ¥990×1），ORD-TEST-001（已签收，MEXICO 66 SD 米色 ¥1290 + MEXICO 66 SD VIN 白色/蓝色 ¥1390）。成功退货应创建 confirm_ticket 卡片。",
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_ticket_004",
+    "description": "说错订单号：先给错的，系统纠正后改正确",
+    "scenario": "你要退货，一开始故意说订单号是 XYZ-12345。系统查不到告诉你时，你说记错了，实际是 ORD-TEST-002。然后配合完成退货。退货申请提交后就加 [END]结束。",
+    "max_turns": 18,
+    "trials": 1,
+    "setup": {"user_id": "test_user_001"},
+    "reference": "测试数据：用户 test_user_001。ORD-TEST-002（已付款待发货，MEXICO 66 休闲鞋 白色 ¥990×1），ORD-TEST-001（已签收，MEXICO 66 SD 米色 ¥1290 + MEXICO 66 SD VIN 白色/蓝色 ¥1390）。成功退货应创建 confirm_ticket 卡片。",
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_ticket_005",
+    "description": "诉求不合理：穿了一个月且发票丢了还要退",
+    "scenario": "你要退货，但这双鞋已经穿了一个多月了而且发票也丢了。系统查订单后告知你政策。你可以接受系统解释，不强求。问题解决或得到合理解释后就加 [END]结束。",
+    "max_turns": 15,
+    "trials": 1,
+    "setup": {"user_id": "test_user_001"},
+    "reference": "测试数据：用户 test_user_001。ORD-TEST-002（已付款待发货，MEXICO 66 休闲鞋 白色 ¥990×1），ORD-TEST-001（已签收，MEXICO 66 SD 米色 ¥1290 + MEXICO 66 SD VIN 白色/蓝色 ¥1390）。成功退货应创建 confirm_ticket 卡片。",
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_ticket_006",
+    "description": "质量投诉：穿两次开胶，要求赔偿",
+    "scenario": "你在Onitsuka Tiger买的鞋穿了两次鞋底就开胶了，非常生气。你要投诉并要求赔偿或退货。系统问什么你说什么，配合提供购买信息。",
+    "max_turns": 18,
+    "trials": 1,
+    "setup": {"user_id": "test_user_001"},
+    "reference": "测试数据：用户 test_user_001。ORD-TEST-002（已付款待发货，微信渠道，MEXICO 66 休闲鞋 白色 ¥990×1），ORD-TEST-001（已签收，MEXICO 66 SD 米色/黑色 ¥1290 + MEXICO 66 SD VIN 白色/蓝色 ¥1390）。成功退货应创建 confirm_ticket 卡片。",
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  }
+]
+

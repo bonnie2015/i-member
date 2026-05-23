@@ -1,0 +1,56 @@
+[
+  {
+    "agent": "qa",
+    "task_id": "qa_001",
+    "description": "查文档：退换货政策 RAG 检索并回答",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "messages": [{"role": "human", "content": "退换货政策是什么"}]
+      }
+    },
+    "expect": {
+      "tool_trace_contains": ["rag_search"],
+      "tool_trace_content_contains": [{"tool": "rag_search", "text": "退货"}],
+      "final_reply_not_fallback": true
+    }
+  },
+  {
+    "agent": "qa",
+    "task_id": "qa_002",
+    "description": "不查文档：闲聊不触发 RAG",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "messages": [{"role": "human", "content": "你好"}]
+      }
+    },
+    "expect": {
+      "tool_trace_not_contains": ["rag_search"]
+    }
+  },
+  {
+    "agent": "qa",
+    "task_id": "qa_003",
+    "description": "召回验证：退换货时效",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "messages": [{"role": "human", "content": "退换货的时效是多久"}]
+      }
+    },
+    "expect": {
+      "tool_trace_contains": ["rag_search"],
+      "tool_trace_content_contains": [{"tool": "rag_search", "text": "7日"}]
+    }
+  }
+]

@@ -1,0 +1,42 @@
+[
+  {
+    "task_id": "e2e_qa_001",
+    "description": "QA退换货政策咨询",
+    "trials": 1,
+    "turns": [
+      {"role": "user", "content": "退换货政策是什么"}
+    ],
+    "reference": "Onitsuka Tiger官方线上商城支持7天无理由退货（定制款除外）。签收之日起7日内申请，商品须保持完好（吊牌未剪、未使用、未洗涤、无穿着痕迹），连同原始包装、配件、赠品、购物凭证和发票一并退回。包装或吊牌破损需支付费用（鞋盒黑色¥10、其他色¥50、吊牌¥10）。非质量问题由买家承担退回运费，质量问题联系客服确认后在三包期内处理。退款在收到退回商品后7日内办理。",
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_qa_002",
+    "description": "QA会员规则咨询",
+    "trials": 1,
+    "turns": [
+      {"role": "user", "content": "会员等级怎么升级"}
+    ],
+    "reference": "Onitsuka Tiger Club会员等级分为雪虎(注册即可)、黑虎(近12月累计消费满2000元)、银虎(满5000元)、金虎(满10000元)。升级后等级有效期12个月，保级需在有效期内达到对应消费金额，否则降级。",
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_qa_003",
+    "description": "QA尺码咨询",
+    "trials": 1,
+    "turns": [
+      {"role": "user", "content": "这鞋偏码吗，我穿37该选多大"}
+    ],
+    "reference": "应建议用户参考尺码对照表，根据脚长选码。37码一般对应脚长235mm。",
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  },
+  {
+    "task_id": "e2e_qa_004",
+    "description": "QA闲聊：不应调RAG",
+    "trials": 1,
+    "turns": [
+      {"role": "user", "content": "你都能做什么"}
+    ],
+    "reference": "无需查询知识库，应介绍自己的能力范围：可以帮您查订单、办退货、推荐商品、解答品牌政策问题等。不应编造具体政策或商品信息。",
+    "rubric": ["correctness", "groundedness", "card_usage"]
+  }
+]

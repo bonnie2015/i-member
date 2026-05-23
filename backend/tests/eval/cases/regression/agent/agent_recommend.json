@@ -1,0 +1,121 @@
+[
+  {
+    "agent": "recommend",
+    "task_id": "rec_001",
+    "description": "特殊查询：西红柿鸡蛋色鞋",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "messages": [{"role": "human", "content": "有没有西红柿鸡蛋色的鞋"}],
+        "extra": {
+          "recommend_context": {"summary": "", "anchor_products": [], "cursor": {}}
+        }
+      }
+    },
+    "expect": {
+      "tool_trace_contains": ["onitsuka_search_products_hybrid"],
+      "final_reply_not_empty": true
+    }
+  },
+  {
+    "agent": "recommend",
+    "task_id": "rec_002",
+    "description": "查商品其他颜色/尺码",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "messages": [
+          {"role": "assistant", "content": "为你找到了MEXICO 66 SD 米色/黑色款"},
+          {"role": "human", "content": "这款有其他颜色吗？尺码全吗？"}
+        ],
+        "extra": {
+          "recommend_context": {
+            "summary": "用户想要MEXICO 66 SD",
+            "anchor_products": [{"product_id": 56077, "color_id": 19297, "name": "MEXICO 66 SD 米色/黑色"}],
+            "cursor": {}
+          }
+        }
+      }
+    },
+    "expect": {
+      "tool_trace_contains": ["onitsuka_get_product_detail"],
+      "final_reply_not_empty": true
+    }
+  },
+  {
+    "agent": "recommend",
+    "task_id": "rec_003",
+    "description": "用户说不好看→调整搜索",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "messages": [
+          {"role": "assistant", "content": "为你推荐了MEXICO 66 SD 米色款"},
+          {"role": "human", "content": "不好看，有别的吗"}
+        ],
+        "extra": {
+          "recommend_context": {
+            "summary": "上一轮推荐了MEXICO 66 SD 米色款，用户不喜欢",
+            "anchor_products": [{"product_id": 56077, "color_id": 19297, "name": "MEXICO 66 SD 米色/黑色"}],
+            "cursor": {}
+          }
+        }
+      }
+    },
+    "expect": {
+      "final_reply_not_empty": true
+    }
+  },
+  {
+    "agent": "recommend",
+    "task_id": "rec_004",
+    "description": "需求矛盾：便宜但限量",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "messages": [{"role": "human", "content": "想要既便宜又是限量款的鞋"}],
+        "extra": {
+          "recommend_context": {"summary": "", "anchor_products": [], "cursor": {}}
+        }
+      }
+    },
+    "expect": {
+      "final_reply_not_empty": true,
+      "tool_trace_count_max": 6
+    }
+  },
+  {
+    "agent": "recommend",
+    "task_id": "rec_005",
+    "description": "验证正确调用工具：搜索后回复商品",
+    "trials": 1,
+    "setup": {
+      "run_mode": "agent",
+      "state_overrides": {
+        "thread_id": "auto",
+        "user_id": "test_user_001",
+        "messages": [{"role": "human", "content": "推荐一双适合跑步的鞋"}],
+        "extra": {
+          "recommend_context": {"summary": "", "anchor_products": [], "cursor": {}}
+        }
+      }
+    },
+    "expect": {
+      "tool_trace_contains": ["onitsuka_search_products_hybrid"],
+      "products_not_empty": true,
+      "final_reply_not_empty": true
+    }
+  }
+]
