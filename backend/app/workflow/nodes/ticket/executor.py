@@ -36,13 +36,14 @@ def _maybe_compress_try_process(tp: list, step_goal: str) -> list:
     if token_count < TRY_PROCESS_MAX_TOKENS:
         return tp
 
-    # 找到最近一对 request+result 的起始位置
+    # 找到最近一对 request+result 的起始位置，按 call_id 匹配
     split_at = 0
     for i in range(len(tp) - 1, -1, -1):
         entry = tp[i]
         if "result" in entry:
+            call_id = entry.get("call_id")
             for j in range(i - 1, -1, -1):
-                if "args" in tp[j] and tp[j].get("tool") == entry.get("tool"):
+                if "args" in tp[j] and tp[j].get("call_id") == call_id:
                     split_at = j
                     break
             if split_at > 0:
@@ -97,7 +98,7 @@ def _try_process_to_messages(system_prompt: str, tp: list) -> list:
         elif "args" in entry:
             tool_name = entry.get("tool", "")
             tool_args = entry.get("args", {})
-            call_id = f"call_{i}"
+            call_id = entry.get("call_id") or f"call_{i}"
             pending_tool_call_id = call_id
             tool_call = {"name": tool_name, "args": tool_args, "id": call_id}
             messages.append(AIMessage(content="", tool_calls=[tool_call]))
@@ -107,7 +108,7 @@ def _try_process_to_messages(system_prompt: str, tp: list) -> list:
             result_text = (
                 message_text(result) if not isinstance(result, str) else result
             )
-            call_id = pending_tool_call_id or f"call_{i}"
+            call_id = entry.get("call_id") or pending_tool_call_id or f"call_{i}"
             pending_tool_call_id = None
             messages.append(
                 ToolMessage(content=result_text, name=tool_name, tool_call_id=call_id)
@@ -362,9 +363,10 @@ async def _run_executor_loop(
 
             tool = tool_map.get(tool_name)
             if tool is None:
+                call_id = tool_call.get("id", f"call_{tool_call_count + i}")
                 error_msg = f"工具 {tool_name} 不在当前步骤可用工具列表中"
-                try_process.append({"tool": tool_name, "args": tool_args})
-                try_process.append({"tool": tool_name, "result": error_msg})
+                try_process.append({"tool": tool_name, "args": tool_args, "call_id": call_id})
+                try_process.append({"tool": tool_name, "result": error_msg, "call_id": call_id})
                 messages.append(
                     ToolMessage(
                         content=error_msg,
@@ -385,15 +387,16 @@ async def _run_executor_loop(
                 )
                 result = f"工具执行错误: {exc}"
 
-            try_process.append({"tool": tool_name, "args": tool_args})
-            try_process.append({"tool": tool_name, "result": result})
+            call_id = tool_call.get("id", f"call_{tool_call_count + i}")
+            try_process.append({"tool": tool_name, "args": tool_args, "call_id": call_id})
+            try_process.append({"tool": tool_name, "result": result, "call_id": call_id})
             result_text = (
                 message_text(result) if not isinstance(result, str) else result
             )
             messages.append(
                 ToolMessage(
                     content=result_text,
-                    tool_call_id=tool_call.get("id", ""),
+                    tool_call_id=call_id,
                     name=tool_name,
                 )
             )

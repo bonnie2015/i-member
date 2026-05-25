@@ -76,43 +76,53 @@ async def chat(
                 detail="thread_id does not belong to current user",
             )
 
-    context_token = REQUEST_ACCESS_TOKEN_CTX.set(auth.access_token)
-    user_context_token = REQUEST_USER_ID_CTX.set(user_id)
     thread_id = request.thread_id or f"{user_id}_{uuid.uuid4().hex[:8]}"
-    thread_context_token = REQUEST_THREAD_ID_CTX.set(thread_id)
-    try:
-        await append_chat_message(
-            user_id,
-            thread_id,
-            {
-                "role": "user",
-                "content": request.message,
-            },
-        )
 
-        result = await invoke_member_ops(
-            user_message=request.message,
-            user_id=user_id,
-            thread_id=thread_id,
-            channel=request.channel,
-        )
-        response = ChatResponse(**result)
-        await append_chat_message(
-            user_id,
-            thread_id,
-            {
-                "role": "assistant",
-                "content": response.reply,
-                "interaction": response.interaction.model_dump(mode="json")
-                if response.interaction
-                else None,
-                "products": [
-                    item.model_dump(mode="json") for item in response.products
-                ],
-            },
-        )
-        return response
-    finally:
-        REQUEST_THREAD_ID_CTX.reset(thread_context_token)
-        REQUEST_ACCESS_TOKEN_CTX.reset(context_token)
-        REQUEST_USER_ID_CTX.reset(user_context_token)
+    from app.config.redis_lock import redis_lock
+
+    async with redis_lock(thread_id) as locked:
+        if not locked:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="当前会话正在处理中，请稍后重试",
+            )
+
+        context_token = REQUEST_ACCESS_TOKEN_CTX.set(auth.access_token)
+        user_context_token = REQUEST_USER_ID_CTX.set(user_id)
+        thread_context_token = REQUEST_THREAD_ID_CTX.set(thread_id)
+        try:
+            await append_chat_message(
+                user_id,
+                thread_id,
+                {
+                    "role": "user",
+                    "content": request.message,
+                },
+            )
+
+            result = await invoke_member_ops(
+                user_message=request.message,
+                user_id=user_id,
+                thread_id=thread_id,
+                channel=request.channel,
+            )
+            response = ChatResponse(**result)
+            await append_chat_message(
+                user_id,
+                thread_id,
+                {
+                    "role": "assistant",
+                    "content": response.reply,
+                    "interaction": response.interaction.model_dump(mode="json")
+                    if response.interaction
+                    else None,
+                    "products": [
+                        item.model_dump(mode="json") for item in response.products
+                    ],
+                },
+            )
+            return response
+        finally:
+            REQUEST_THREAD_ID_CTX.reset(thread_context_token)
+            REQUEST_ACCESS_TOKEN_CTX.reset(context_token)
+            REQUEST_USER_ID_CTX.reset(user_context_token)

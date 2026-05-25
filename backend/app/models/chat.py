@@ -14,6 +14,9 @@ class ChatRequest(BaseModel):
     channel: str = Field(
         "api", description="渠道来源: wechat/app/web/jd/tmall/douyin/api"
     )
+    idempotency_key: Optional[str] = Field(
+        None, description="幂等键，同一 key 的重复请求直接返回缓存结果，5 分钟有效"
+    )
 
 
 class ChatResponse(BaseModel):
