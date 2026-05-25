@@ -200,6 +200,7 @@ async def save_user_facts_store(
 ) -> UserFactsStore:
     redis = await get_optional_redis_client()
     if not redis:
+        logger.error("[user_facts] Redis unavailable, facts dropped: user=%s", user_id)
         return UserFactsStore()
 
     existing = await load_user_facts_store(user_id)

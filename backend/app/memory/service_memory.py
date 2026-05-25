@@ -42,6 +42,7 @@ async def save_service_memory(
 ) -> None:
     redis = await get_optional_redis_client()
     if not redis:
+        logger.error("[service_memory] Redis unavailable, memory dropped: user=%s thread=%s", user_id, thread_id)
         return
 
     try:
