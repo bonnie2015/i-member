@@ -18,47 +18,9 @@
 
 **Ticket 子图**：Plan-and-Execute 多 Agent 协作。Guard → Plan → Executor → Reflect → Finalize 五节点流水线，内建失败重规划（replan）和人工介入中断恢复（interrupt/resume），工具按步骤动态绑定、按剩余次数裁剪。
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Router
-    participant Ticket
-    participant Tools
-    participant LLM
-
-    User->>Router: "我要退货"
-    Router->>Ticket: intent=ticket
-    Ticket->>Ticket: Guard 选择 refund-ticket
-    Ticket->>Ticket: Plan 生成步骤
-    loop 每个步骤
-        Ticket->>LLM: tool_choice=required
-        LLM-->>Ticket: tool_call
-        Ticket->>Tools: 执行工具
-        Tools-->>Ticket: 结果
-    end
-    Ticket->>User: 工单创建成功 + 确认卡片
-```
-
 **QA 子图**：ReAct Agent 挂载 RAG 检索（Qdrant），上下文中自动注入用户画像与服务记忆，token 超阈值触发对话压缩。
 
 **Recommend 子图**：Guard + Agent 两阶段。Guard 负责跨轮上下文摘要与锚点商品抽取，Agent 负责工具调用与商品收敛。
-
-## 快速开始
-
-```bash
-git clone https://github.com/bonnie2015/i-member.git && cd i-member
-cp .env.example .env  # 必填 DEEPSEEK_API_KEY
-docker compose up -d
-# 打开 http://localhost:3000
-```
-
-> **LLM 依赖**：使用 DeepSeek API。Ollama 不配置时自动走 remote。
-
-### 开发模式
-
-```bash
-docker compose --profile dev up -d   # backend 热重载
-```
 
 ## 效果展示
 
@@ -114,6 +76,23 @@ docker compose --profile dev up -d   # backend 热重载
 docker compose exec backend python -m pytest tests/unit/ -v         # 单元测试
 docker compose exec backend python -m pytest tests/eval/agent/ -v   # Agent 单测
 docker compose exec backend python -m pytest tests/eval/e2e/ -v     # E2E
+```
+
+## 快速开始
+
+```bash
+git clone https://github.com/bonnie2015/i-member.git && cd i-member
+cp .env.example .env  # 必填 DEEPSEEK_API_KEY
+docker compose up -d
+# 打开 http://localhost:3000
+```
+
+> **LLM 依赖**：使用 DeepSeek API。Ollama 不配置时自动走 remote。
+
+### 开发模式
+
+```bash
+docker compose --profile dev up -d   # backend 热重载
 ```
 
 ## 品牌接入指南
