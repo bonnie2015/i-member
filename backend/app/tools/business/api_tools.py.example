@@ -1,0 +1,254 @@
+"""
+业务工具模板 — 品牌方替换并重命名为 api_tools.py
+
+品牌方需要实现：
+1. 定义各业务 API 和商品工具的 Input Schema（Pydantic BaseModel）
+2. 用 @tool 装饰器定义工具函数
+3. 实现 call_scrm_api() — 统一的 HTTP 请求入口（鉴权、限流、错误处理）
+4. 实现 get_scrm_tools() — 返回所有工具列表
+
+工具列表会被 workflow 自动挂载到 LLM agent。
+"""
+
+from typing import Any, Dict, List, Optional, Literal
+
+import httpx
+from langchain_core.tools import BaseTool, tool
+from pydantic import BaseModel, Field
+
+from app.config.config import settings
+from app.config.logging import get_logger
+from app.tools.business.execution_context import (
+    REQUEST_ACCESS_TOKEN_CTX,
+    REQUEST_USER_ID_CTX,
+)
+
+logger = get_logger("api_tools")
+
+
+# ═══════════════════════════════════════════════════════════════
+# 1. 品牌方在此定义各业务工具的 Input Schema
+# ═══════════════════════════════════════════════════════════════
+
+# 示例：用户订单查询
+class GetUserOrdersInput(BaseModel):
+    order_status: Optional[str] = Field(
+        default=None,
+        description="订单状态筛选：pending/paid/shipped/delivered/closed。",
+    )
+    order_keyword: Optional[str] = Field(
+        default=None,
+        description="订单号或商品名关键词；缺少订单号时可先用它搜索候选订单。",
+    )
+    page: int = Field(default=1, ge=1, description="页码，默认 1。")
+
+
+# 示例：订单详情查询
+class GetOrderDetailInput(BaseModel):
+    order_id: str = Field(description="订单 ID。")
+
+
+# 示例：创建工单
+class CreateTicketInput(BaseModel):
+    ticket_type: str = Field(description="工单类型，按品牌业务定义。")
+    problem_description: str = Field(description="问题描述。")
+    order_id: Optional[str] = Field(default=None, description="关联订单 ID。")
+
+
+# ── 必写：商品搜索 Input Schema ──────────────────────────
+
+class SearchProductsInput(BaseModel):
+    """
+    商品搜索输入参数。
+    品牌方根据自身商品系统的搜索能力定义字段。
+    建议至少支持：关键词、品类、价格区间、排序、翻页。
+    """
+    keyword: str = Field(default="", description="搜索关键词。")
+    category: str = Field(default="", description="商品品类。与 keyword 二选一。")
+    gender: str = Field(default="", description="性别/人群过滤。仅在用户明确指定时填写。")
+    color: str = Field(default="", description="颜色过滤。仅在用户明确指定时填写。")
+    price_range: str = Field(default="", description="价格区间过滤。")
+    sort: Literal["", "new", "sales", "price:asc", "price:desc"] = Field(
+        default="",
+        description="排序方式：new=新品, sales=热销, price:asc=价格升序, price:desc=价格降序。",
+    )
+    page: int = Field(default=1, ge=1, description="页码。")
+
+
+# ── 必写：商品详情 Input Schema ──────────────────────────
+
+class GetProductDetailInput(BaseModel):
+    """商品详情查询输入参数。"""
+    product_id: str = Field(description="商品 ID，来自 search_products 的返回结果。")
+
+
+# ═══════════════════════════════════════════════════════════════
+# 2. 品牌方在此实现 call_scrm_api
+# ═══════════════════════════════════════════════════════════════
+
+async def call_scrm_api(
+    method: str,
+    path: str,
+    *,
+    query: Optional[Dict[str, Any]] = None,
+    body: Optional[Dict[str, Any]] = None,
+    timeout_s: float = 10.0,
+) -> Dict[str, Any]:
+    """
+    统一的业务 API 调用入口（含商品 API）。
+
+    品牌方需要实现：
+    - HTTP 请求发送（GET/POST/PUT 等）
+    - 鉴权 header 拼装（从 REQUEST_ACCESS_TOKEN_CTX 获取 token）
+    - 限流控制
+    - 错误处理（HTTP 异常、超时、业务错误码）
+    - 响应解析和标准化
+
+    商品搜索/详情接口的调用也复用此入口，或单独实现 call_product_api()。
+    """
+    base_url = settings.business_api_url.rstrip("/")
+    url = f"{base_url}{'' if path.startswith('/') else '/'}{path}"
+
+    access_token = REQUEST_ACCESS_TOKEN_CTX.get()
+    headers: Dict[str, str] = {
+        "Content-Type": "application/json",
+        # "Authorization": f"Bearer {access_token}",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            resp = await client.request(
+                method=method.upper(),
+                url=url,
+                params=query or None,
+                json=body or None,
+                headers=headers,
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPStatusError as exc:
+        logger.warning("api_tools http error: %s %s status=%s", method, path, exc.response.status_code)
+        raise
+    except Exception as exc:
+        logger.warning("api_tools call failed: %s %s err=%s", method, path, exc)
+        raise
+
+
+# ═══════════════════════════════════════════════════════════════
+# 3. 业务 API 工具函数
+# ═══════════════════════════════════════════════════════════════
+
+@tool("get_user_orders", args_schema=GetUserOrdersInput)
+async def get_user_orders(
+    order_status: Optional[str] = None,
+    order_keyword: Optional[str] = None,
+    page: int = 1,
+) -> Dict[str, Any]:
+    """获取当前用户的订单列表。无订单号时先用它搜索候选订单。返回空列表说明无符合条件的订单。"""
+    user_id = REQUEST_USER_ID_CTX.get() or ""
+    return await call_scrm_api(
+        "GET", "/orders",
+        query={"user_id": user_id, "status": order_status, "keyword": order_keyword, "page": page},
+    )
+
+
+@tool("get_order_detail", args_schema=GetOrderDetailInput)
+async def get_order_detail(order_id: str) -> Dict[str, Any]:
+    """查询单笔订单详情；确认商品、金额和状态时使用。"""
+    return await call_scrm_api("GET", f"/orders/{order_id}")
+
+
+@tool("create_ticket", args_schema=CreateTicketInput)
+async def create_ticket(
+    ticket_type: str,
+    problem_description: str,
+    order_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """创建客服工单；确认要正式发起售后或投诉时使用。"""
+    return await call_scrm_api(
+        "POST", "/tickets",
+        body={"ticket_type": ticket_type, "problem_description": problem_description, "order_id": order_id},
+    )
+
+
+# ═══════════════════════════════════════════════════════════════
+# 4. 商品工具函数（必写）
+# ═══════════════════════════════════════════════════════════════
+
+@tool("search_products", args_schema=SearchProductsInput)
+async def search_products(
+    keyword: str = "",
+    category: str = "",
+    gender: str = "",
+    color: str = "",
+    price_range: str = "",
+    sort: Literal["", "new", "sales", "price:asc", "price:desc"] = "",
+    page: int = 1,
+) -> Dict[str, Any]:
+    """
+    搜索/浏览商品。
+
+    品牌方必须实现此工具。用于：
+    - 关键词搜索商品
+    - 按品类浏览
+    - 按新品/热销等排序浏览
+    - 支持筛选（颜色、价格区间等）
+
+    返回格式至少包含：
+    {
+        "products": [{"product_id": ..., "product_name": ..., "price": ..., "image": ..., ...}],
+        "total_found": ...,
+        "has_next": ...,
+        "next_page": ...
+    }
+    """
+    return await call_scrm_api(
+        "POST", "/products/search",
+        body={"keyword": keyword, "category": category, "gender": gender,
+              "color": color, "price_range": price_range, "sort": sort, "page": page},
+    )
+
+
+@tool("get_product_detail", args_schema=GetProductDetailInput)
+async def get_product_detail(product_id: str) -> Dict[str, Any]:
+    """
+    获取商品详情。
+
+    品牌方必须实现此工具。用于获取商品的尺码、库存、可选颜色等详细信息。
+
+    返回格式至少包含：
+    {
+        "product_id": ...,
+        "product_name": ...,
+        "price": ...,
+        "colors": [{"color_id": ..., "color_name": ..., "images": [...]}],
+        "sizes": [{"size": ..., "stock": ...}],
+        "description": ...
+    }
+    """
+    return await call_scrm_api("GET", f"/products/{product_id}")
+
+
+# ═══════════════════════════════════════════════════════════════
+# 5. 品牌方在此注册所有工具
+# ═══════════════════════════════════════════════════════════════
+
+def get_scrm_tools() -> List[BaseTool]:
+    """
+    返回可挂载到 LLM agent 的工具列表。
+
+    品牌方在此注册所有 @tool 定义的函数（业务 API + 商品工具）。
+    workflow 通过此方法获取工具列表并挂载到 agent。
+    工具名称会出现在 SKILL.md 的 available_tools 字段中。
+    """
+    return [
+        # 业务 API 工具
+        get_user_orders,
+        get_order_detail,
+        create_ticket,
+        # 在此添加更多业务工具...
+
+        # 商品工具（必写）
+        search_products,
+        get_product_detail,
+    ]
