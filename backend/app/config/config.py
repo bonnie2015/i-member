@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     # Redis配置
     redis_url: str
 
-    # SCRM 服务
-    scrm_url: str = "http://scrm:3658"
+    # 业务 API 服务
+    business_api_url: str
 
     # Ollama 配置
     ollama_base_url: str
