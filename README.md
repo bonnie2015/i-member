@@ -66,6 +66,8 @@ docker compose --profile dev up -d   # backend 热重载
 
 ![推荐演示](docs/assets/recommend.jpg)
 
+![推荐演示2](docs/assets/recommend2.png)
+
 ![工单办理演示](docs/assets/ticket.jpg)
 
 [更多推荐表现](https://github.com/bonnie2015/i-member/issues/9#issuecomment-4405059807)、[更多工单表现](https://github.com/bonnie2015/i-member/issues/3#issuecomment-4405109262)、[更多咨询表现](https://github.com/bonnie2015/i-member/issues/11#issuecomment-4405130128)
@@ -76,24 +78,25 @@ docker compose --profile dev up -d   # backend 热重载
 
 > 详见 [系统设计](https://github.com/bonnie2015/i-member/issues/22)
 
-## Benchmark
+## Langfuse 观测
 
-测试环境：DeepSeek Chat，Docker Compose 本地部署，单并发。
+> 环境：DeepSeek Chat，Docker Compose 本地部署，单并发。MacBook Pro M1 Pro / 32GB RAM。
 
-| 指标 | 优化前 | 优化后 |
-|------|--------|--------|
-| 平均单轮 Token | 25k | 6.4k（-75%） |
-| P95 响应延迟 | 27s | 5s（~5x） |
+**工单链路**：平均每轮对话 latency 7.49s，token usage 7193，冰点 2331，峰值 24591
 
-当前稳态指标：
+![Ticket 链路](docs/assets/ticket-tracing.png)
 
-| 场景 | 单轮 token | 响应时间 | 压缩比 |
-|------|-----------|---------|--------|
-| Ticket 工单 | 2.7k-4.8k | 2-6s | — |
-| Recommend 推荐 | ~3.5k | 5-8s | — |
-| QA 咨询 | — | 5-7s | ~43% |
+![Ticket 链路](docs/assets/ticket-tracing2.png)
 
-![Langfuse Trace](docs/assets/tracing.png)
+**常规咨询**：平均每轮对话 latency 7.37s，token usage 6624，冰点 2351，峰值 15055
+
+![QA 链路](docs/assets/qa-tracing.png)
+
+**推荐场景**：平均每轮对话 latency 7.51s，token usage 7,521，冰点 4935 峰值 14280
+
+![Recommend 链路](docs/assets/recommend-tracing.png)
+
+**整体体验**：85% 以上对话 10s 内得到恢复，2～6s 覆盖较广，偶发极端情况会延长时间。token usage 在保证服务质量的前提下总体可控。
 
 ## 评测体系
 

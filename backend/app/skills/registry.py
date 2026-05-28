@@ -11,7 +11,7 @@ from app.config.logging import get_logger
 logger = get_logger("skills_registry")
 
 _SKILLS_DIR = Path(__file__).parent
-_LIST_FIELDS = {"available_tools", "clarify_labels"}
+_LIST_FIELDS = {"available_tools"}
 _REGISTRY_ROOT = _SKILLS_DIR.parent.parent.parent
 _DEFAULT_SKILL_GROUP = "ticket"
 
@@ -52,7 +52,6 @@ def list_skills(group: Optional[str] = None) -> List[Dict[str, str]]:
                 "name": name,
                 "description": description,
                 "available_tools": list(frontmatter.get("available_tools") or []),
-                "clarify_labels": list(frontmatter.get("clarify_labels") or []),
                 "group": target_group,
                 "location": str(skill_md.relative_to(_REGISTRY_ROOT)),
             }
@@ -72,7 +71,6 @@ def build_skills_snapshot(group: Optional[str] = None) -> None:
                 f"        <name>{skill['name']}</name>",
                 f"        <description>{skill['description']}</description>",
                 f"        <available_tools>{', '.join(skill['available_tools'])}</available_tools>",
-                f"        <clarify_labels>{', '.join(skill['clarify_labels'])}</clarify_labels>",
                 f"        <location>{skill['location']}</location>",
                 "    </skill>",
             ]

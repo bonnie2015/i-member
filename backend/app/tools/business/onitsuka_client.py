@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from typing import Any, Dict
 
@@ -7,7 +8,10 @@ import httpx
 
 from app.config.logging import get_logger
 from app.config.redis import get_redis_client
-from app.config.redis_keys import ONITSUKA_RATE_LIMIT_KEY, ONITSUKA_RATE_LIMIT_GLOBAL_KEY
+from app.config.redis_keys import (
+    ONITSUKA_RATE_LIMIT_KEY,
+    ONITSUKA_RATE_LIMIT_GLOBAL_KEY,
+)
 from app.tools.business.execution_context import REQUEST_USER_ID_CTX
 
 logger = get_logger("onitsuka_client")
@@ -29,7 +33,9 @@ async def _check_rate_limit() -> None:
 
     # 单用户计数（只 INCR 一次）
     if user_id:
-        user_key = ONITSUKA_RATE_LIMIT_KEY.format(user_id=user_id, minute_bucket=minute_bucket)
+        user_key = ONITSUKA_RATE_LIMIT_KEY.format(
+            user_id=user_id, minute_bucket=minute_bucket
+        )
         count = await redis.incr(user_key)
         if count == 1:
             await redis.expire(user_key, 90)
@@ -60,7 +66,9 @@ def _rate_limited(scope: str) -> httpx.HTTPStatusError:
     return httpx.HTTPStatusError(
         message=f"Onitsuka rate limit exceeded: {scope}",
         request=httpx.Request("RATE_LIMIT", "redis://onitsuka-rate-limit"),
-        response=httpx.Response(429, request=httpx.Request("RATE_LIMIT", "redis://onitsuka-rate-limit")),
+        response=httpx.Response(
+            429, request=httpx.Request("RATE_LIMIT", "redis://onitsuka-rate-limit")
+        ),
     )
 
 
@@ -79,22 +87,28 @@ async def call_onitsuka_v2(path: str, payload: Dict[str, Any]) -> Dict[str, Any]
     except httpx.HTTPStatusError as exc:
         status_code = exc.response.status_code if exc.response else None
         logger.warning(
-            "[onitsuka_client] http error path=%s status=%s err=%s",
+            "[onitsuka_client] http error path=%s status=%s payload=%s err=%s",
             path,
             status_code,
+            json.dumps(payload, ensure_ascii=False, default=str)[:300],
             exc,
         )
         return {
             "error": str(exc),
             "error_code": f"ONITSUKA_HTTP_{status_code or 'UNKNOWN'}",
             "path": path,
+            "request": payload,
         }
     except Exception as exc:
-        logger.warning("[onitsuka_client] call failed path=%s err=%s", path, exc)
+        logger.warning("[onitsuka_client] call failed path=%s payload=%s err=%s",
+                        path,
+                        json.dumps(payload, ensure_ascii=False, default=str)[:300],
+                        exc)
         return {
             "error": str(exc),
             "error_code": "ONITSUKA_CALL_FAILED",
             "path": path,
+            "request": payload,
         }
 
     if not isinstance(body, dict):

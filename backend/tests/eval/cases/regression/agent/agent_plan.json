@@ -19,7 +19,7 @@
       "steps_min": 2,
       "steps_max": 5,
       "expected_slots_not_empty": true,
-      "tools_allowed": ["get_user_orders", "get_product_detail", "create_ticket", "get_ticket", "get_tickets", "search_products"]
+      "tools_allowed": ["get_user_orders", "get_order_detail", "get_product_detail", "create_ticket", "search_products", "read_file"]
     }
   },
   {
@@ -147,7 +147,7 @@
     "expect": {
       "steps_min": 1,
       "steps_max": 5,
-      "tools_allowed": ["get_user_orders", "get_product_detail", "create_ticket", "get_ticket", "get_tickets", "search_products"]
+      "tools_allowed": ["get_user_orders", "get_order_detail", "get_product_detail", "create_ticket", "search_products", "read_file"]
     }
   }
 ]

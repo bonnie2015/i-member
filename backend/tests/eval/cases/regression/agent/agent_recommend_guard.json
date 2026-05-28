@@ -84,8 +84,8 @@
             "cursor": {}
           },
           "trace": [
-            {"tool": "search_products", "args": {"query": "白色休闲鞋"}, "result": [{"product_id": 46641, "color_id": 5101, "name": "MEXICO 66 休闲鞋 白色", "price": 990}]},
-            {"tool": "reply_with_products", "args": {"products": [{"product_id": 46641, "color_id": 5101}]}, "result": {"reply": "为您推荐白色款"}}
+            {"tool": "search_products", "args": {"query": "白色休闲鞋"}, "result": [{"product_id": 56077, "color_id": 19297, "name": "MEXICO 66 休闲鞋 白色", "price": 990}]},
+            {"tool": "reply_with_products", "args": {"products": [{"product_id": 56077, "color_id": 19297}]}, "result": {"reply": "为您推荐白色款"}}
           ]
         },
         "messages": [

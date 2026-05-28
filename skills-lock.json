@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "skill-creator": {
+      "source": "modelscope.cn",
+      "sourceType": "well-known",
+      "computedHash": "b0818700436c3cf2a09bde7a9a9e3511c6db1bbbc2938753eb6bbd6f36f9f48f"
+    }
+  }
+}

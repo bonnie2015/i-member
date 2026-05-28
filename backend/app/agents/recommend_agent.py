@@ -277,7 +277,9 @@ class RecommendAgent(BaseAgent):
     def _get_search_tools(self) -> List[Any]:
         if not self._search_tools:
             all_scrm = {t.name: t for t in get_scrm_tools()}
-            self._search_tools = [all_scrm["search_products"]] if "search_products" in all_scrm else []
+            self._search_tools = (
+                [all_scrm["search_products"]] if "search_products" in all_scrm else []
+            )
         return self._search_tools
 
     def _get_all_tools(self) -> List[Any]:
@@ -334,11 +336,12 @@ class RecommendAgent(BaseAgent):
     @staticmethod
     def _tool_control_message(tool_count: int) -> SystemMessage | None:
         remaining = RECOMMEND_MAX_TOOL_CALLS - tool_count
+        if tool_count == 0:
+            return None
         if remaining == 1:
             return SystemMessage(
                 content=(
-                    "【系统指令】你只剩最后一次工具调用了，必须在本次调用 reply_with_products 结束本轮。"
-                    "不要再搜索，立即调用 reply_with_products。"
+                    "【系统指令】你只剩最后一次工具调用了，必须在本次调用 reply_with_products 结束本轮。不要再搜索，立即调用 reply_with_products。"
                 )
             )
         if remaining <= 0:
@@ -349,7 +352,8 @@ class RecommendAgent(BaseAgent):
             )
         return SystemMessage(
             content=(
-                f"【系统指令】本轮最多 {RECOMMEND_MAX_TOOL_CALLS} 次工具调用，你已使用 {tool_count} 次，还需搜索的话尽快。"
+                f"【系统指令】你已搜索 {tool_count} 次（上限 {RECOMMEND_MAX_TOOL_CALLS} 次），"
+                "搜索有成本，如果已有合适的商品结果，优先调用 reply_with_products 返回，不要过度搜索。"
             )
         )
 

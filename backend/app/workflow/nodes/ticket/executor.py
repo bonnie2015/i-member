@@ -365,8 +365,12 @@ async def _run_executor_loop(
             if tool is None:
                 call_id = tool_call.get("id", f"call_{tool_call_count + i}")
                 error_msg = f"工具 {tool_name} 不在当前步骤可用工具列表中"
-                try_process.append({"tool": tool_name, "args": tool_args, "call_id": call_id})
-                try_process.append({"tool": tool_name, "result": error_msg, "call_id": call_id})
+                try_process.append(
+                    {"tool": tool_name, "args": tool_args, "call_id": call_id}
+                )
+                try_process.append(
+                    {"tool": tool_name, "result": error_msg, "call_id": call_id}
+                )
                 messages.append(
                     ToolMessage(
                         content=error_msg,
@@ -388,8 +392,20 @@ async def _run_executor_loop(
                 result = f"工具执行错误: {exc}"
 
             call_id = tool_call.get("id", f"call_{tool_call_count + i}")
-            try_process.append({"tool": tool_name, "args": tool_args, "call_id": call_id})
-            try_process.append({"tool": tool_name, "result": result, "call_id": call_id})
+            try_process.append(
+                {"tool": tool_name, "args": tool_args, "call_id": call_id}
+            )
+            try_process.append(
+                {"tool": tool_name, "result": result, "call_id": call_id}
+            )
+            if isinstance(result, dict) and "error" in result:
+                logger.warning(
+                    "[executor_node] thread_id=%s tool_error tool=%s args=%s error=%s",
+                    thread_id,
+                    tool_name,
+                    json.dumps(tool_args, ensure_ascii=False, default=str)[:200],
+                    str(result.get("error") or "")[:300],
+                )
             result_text = (
                 message_text(result) if not isinstance(result, str) else result
             )

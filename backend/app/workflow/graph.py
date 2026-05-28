@@ -7,7 +7,8 @@ from langgraph.graph import END, StateGraph
 from langgraph.types import Command
 from pydantic import BaseModel, Field, ValidationError
 
-from app.config.logging import get_logger
+from app.config.logging import get_logger, log_thread_id, log_request_id, new_request_id
+from app.llm.runtime import get_and_clear_request_tokens
 from app.models.interaction import InteractionPayload
 from app.observability.langfuse_client import get_langfuse_handler
 from app.workflow.state import (
@@ -320,6 +321,16 @@ async def invoke_member_ops(
     thread_id: str,
     channel: str = "api",
 ) -> Dict[str, Any]:
+    rid = new_request_id()
+    log_thread_id.set(thread_id)
+    log_request_id.set(rid)
+    logger.info(
+        "[invoke] user_id=%s channel=%s message=%s",
+        user_id,
+        channel,
+        user_message[:80],
+    )
+
     wf = get_workflow()
     config = {"configurable": {"thread_id": thread_id}}
     invoke_state = await _build_invoke_input(
@@ -379,6 +390,14 @@ async def invoke_member_ops(
     service_state = state_snapshot.get("service_state") or {}
     service_interaction = (
         service_state.get("interaction") if isinstance(service_state, dict) else None
+    )
+    token_summary = get_and_clear_request_tokens()
+    logger.info(
+        "[invoke] done reply_len=%s subgraph=%s llm_calls=%s total_tokens=%s",
+        len(reply),
+        state_snapshot.get("current_subgraph"),
+        token_summary.get("llm_calls", 0),
+        token_summary.get("total_tokens", 0),
     )
     return {
         "thread_id": thread_id,

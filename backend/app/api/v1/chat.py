@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.v1.chat_history import (
     append_chat_message,
@@ -10,7 +12,9 @@ from app.models.chat import (
     ChatResponse,
     LatestThreadResponse,
 )
+from app.config.logging import get_logger
 from app.security.jwt_auth import AuthContext, get_auth_context
+
 from app.tools.business.execution_context import (
     REQUEST_ACCESS_TOKEN_CTX,
     REQUEST_THREAD_ID_CTX,
@@ -21,6 +25,8 @@ from app.workflow.graph import (
     invoke_member_ops,
 )
 import uuid
+
+logger = get_logger("chat_api")
 
 router = APIRouter()
 
@@ -100,12 +106,24 @@ async def chat(
                 },
             )
 
+            t0 = time.perf_counter()
             result = await invoke_member_ops(
                 user_message=request.message,
                 user_id=user_id,
                 thread_id=thread_id,
                 channel=request.channel,
             )
+            elapsed_ms = int((time.perf_counter() - t0) * 1000)
+
+            from app.llm.runtime import get_and_clear_request_tokens
+            tokens = get_and_clear_request_tokens()
+            logger.info(
+                "[chat] thread=%s latency_ms=%s llm_calls=%s prompt=%s completion=%s total=%s",
+                thread_id, elapsed_ms,
+                tokens["llm_calls"], tokens["prompt_tokens"],
+                tokens["completion_tokens"], tokens["total_tokens"],
+            )
+
             response = ChatResponse(**result)
             await append_chat_message(
                 user_id,

@@ -92,13 +92,25 @@ async def call_scrm_endpoint(
     url = f"{_build_base_url()}{normalized_path}"
     headers = _build_headers()
     await _check_rate_limit()
-    async with httpx.AsyncClient(timeout=timeout_s) as client:
-        resp = await client.request(
-            method=method.upper(),
-            url=url,
-            params=query or None,
-            json=body or None,
-            headers=headers,
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            resp = await client.request(
+                method=method.upper(),
+                url=url,
+                params=query or None,
+                json=body or None,
+                headers=headers,
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPStatusError as exc:
+        logger.warning(
+            "[scrm_client] http error method=%s path=%s status=%s err=%s",
+            method, path,
+            exc.response.status_code if exc.response else None,
+            exc,
         )
-        resp.raise_for_status()
-        return resp.json()
+        raise
+    except Exception as exc:
+        logger.warning("[scrm_client] call failed method=%s path=%s err=%s", method, path, exc)
+        raise

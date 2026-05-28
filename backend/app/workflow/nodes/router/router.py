@@ -103,4 +103,11 @@ async def router_node(state: AgentState):
     }
     if routed_intent != "qa":
         result["started_at"] = datetime.now(timezone.utc).isoformat()
+    logger.info(
+        "[router] thread_id=%s %s→%s reason=%s",
+        thread_id,
+        previous_subgraph or "none",
+        routed_intent,
+        reason[:60],
+    )
     return result

@@ -7,7 +7,7 @@ from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.prompt_values import PromptValue
 from langchain_core.runnables import RunnableConfig, RunnableLambda
 
-from app.config.logging import get_logger
+from app.config.logging import get_logger, log_thread_id, log_request_id
 
 logger = get_logger("llm_runtime")
 
@@ -50,6 +50,15 @@ def extract_usage(response: Any) -> dict[str, int]:
 
     response_metadata = getattr(response, "response_metadata", None)
     if isinstance(response_metadata, Mapping):
+        # ChatDeepSeek with_structured_output puts tokens at top level
+        pt = _coerce_int(response_metadata.get("prompt_tokens"))
+        ct = _coerce_int(response_metadata.get("completion_tokens"))
+        if pt or ct:
+            return {
+                "prompt_tokens": pt,
+                "completion_tokens": ct,
+                "total_tokens": _coerce_int(response_metadata.get("total_tokens")) or (pt + ct),
+            }
         for key in ("token_usage", "usage"):
             usage_block = response_metadata.get(key)
             if not isinstance(usage_block, Mapping):
@@ -76,6 +85,28 @@ def extract_total_tokens(response: Any) -> int:
     return extract_usage(response).get("total_tokens", 0)
 
 
+def _log_usage(
+    *,
+    node: str,
+    provider: str,
+    usage: dict[str, int],
+    thread_id: str | None = None,
+) -> None:
+    if thread_id:
+        log_thread_id.set(thread_id)
+    prompt = usage.get("prompt_tokens", 0)
+    completion = usage.get("completion_tokens", 0)
+    total = usage.get("total_tokens", 0)
+    logger.info(
+        "[llm] node=%s provider=%s prompt=%s completion=%s total=%s",
+        node,
+        provider,
+        prompt,
+        completion,
+        total,
+    )
+
+
 async def invoke_with_usage_logging(
     *,
     llm: Any,
@@ -94,10 +125,12 @@ async def invoke_with_usage_logging(
             else await invoke_coro
         )
         usage = extract_usage(response)
+        _log_usage(node=node, provider=provider, usage=usage, thread_id=thread_id)
+        _accumulate_token_usage(usage)
         return response, usage
     except Exception as exc:
         logger.warning(
-            "[llm_runtime] node=%s error=%s: %s",
+            "[llm] node=%s error=%s: %s",
             node,
             exc.__class__.__name__,
             exc,
@@ -124,10 +157,12 @@ async def invoke_model_input_with_usage_logging(
             else await invoke_coro
         )
         usage = extract_usage(response)
+        _log_usage(node=node, provider=provider, usage=usage, thread_id=thread_id)
+        _accumulate_token_usage(usage)
         return response, usage
     except Exception as exc:
         logger.warning(
-            "[llm_runtime] node=%s error=%s: %s",
+            "[llm] node=%s error=%s: %s",
             node,
             exc.__class__.__name__,
             exc,
@@ -145,7 +180,7 @@ def with_usage_logging(
     timeout_seconds: float | None = None,
 ) -> RunnableLambda:
     async def _ainvoke(model_input: Any, config: RunnableConfig | None = None) -> Any:
-        response, _ = await invoke_model_input_with_usage_logging(
+        response, usage = await invoke_model_input_with_usage_logging(
             llm=llm,
             model_input=model_input,
             node=node,
@@ -163,8 +198,33 @@ def with_usage_logging(
     return RunnableLambda(_invoke, afunc=_ainvoke, name=f"{node}_logged_model")
 
 
+_request_token_accumulator: dict[str, list[dict[str, int]]] = {}
+
+
+def _accumulate_token_usage(usage: dict[str, int]) -> None:
+    rid = log_request_id.get()
+    if rid == "-":
+        return
+    if rid not in _request_token_accumulator:
+        _request_token_accumulator[rid] = []
+    _request_token_accumulator[rid].append(usage)
+
+
+def get_and_clear_request_tokens() -> dict[str, int]:
+    rid = log_request_id.get()
+    entries = _request_token_accumulator.pop(rid, None) or []
+    total_prompt = sum(e.get("prompt_tokens", 0) for e in entries)
+    total_completion = sum(e.get("completion_tokens", 0) for e in entries)
+    total = sum(e.get("total_tokens", 0) for e in entries)
+    return {
+        "llm_calls": len(entries),
+        "prompt_tokens": total_prompt,
+        "completion_tokens": total_completion,
+        "total_tokens": total,
+    }
+
+
 def estimate_tokens(text: str) -> int:
-    """DeepSeek 官方换算率估算 token 数。中文字符≈0.6, 英文字符≈0.3。"""
     cn = sum(1 for c in text if "\u4e00" <= c <= "\u9fff")
     en = len(text) - cn
     return int(cn * 0.6 + en * 0.3)

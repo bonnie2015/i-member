@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Literal, Optional, TypedDict, get_args
+from typing import Any, Dict, List, Literal, TypedDict, get_args
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -36,7 +36,7 @@ from app.config.logging import get_logger
 
 logger = get_logger("onitsuka_tools")
 
-_RESULT_LIMIT = 5
+_RESULT_LIMIT = 4
 _DEFAULT_PAGE = 1
 _ALL_PRODUCTS_CATEGORY_ID = 572
 
@@ -166,30 +166,23 @@ class SearchByIntentInput(BaseModel):
     category: CategoryValue = Field(
         default="",
         description=(
-            "具体商品品类；未明确则空字符串。鞋类搜索中，category 和系列 keyword 二选一："
-            "用户指定明确系列时不要传 category；用户只说泛化“鞋”可传 category=鞋；"
-            "用户指定德训鞋/休闲鞋/板鞋/厚底鞋/皮鞋/乐福鞋/靴等具体鞋靴品类时，只传 category，不传 keyword。"
-            "非鞋类搜索可使用 category + keyword，例如 衬衫 + 条纹、T恤 + 印花。"
+            "商品品类，与 keyword 二选一，不能同时填写。"
+            "鞋类品类：鞋、德训鞋、休闲鞋、板鞋、厚底鞋、皮鞋、乐福鞋、靴等。"
+            "非鞋品类：T恤、衬衫、夹克、裤装、裙装、配饰等。"
+            "品类不明确时留空。"
         ),
     )
     keyword: str = Field(
         default="",
         description=(
-            "搜索词；未明确则空字符串。只能在如下候选词里选择 1 个，严禁多选和拼接。"
-            "鞋类搜索中，keyword 的主要作用是表达明确系列或把鞋类描述词转换为系列；不要和 category 混用。"
-            "用户指定明确系列时，只传 keyword，不传 category。"
-            "category=鞋 且有 keyword 时，系统会只按 keyword 搜；category 为具体鞋靴品类时，keyword 留空。"
-            "非鞋类搜索优先使用 category + keyword；如果搜索结果不理想，可以尝试只搜 keyword 或只搜 category，并综合判断哪种结果更符合用户最新需求。"
-            "候选词为3类，根据不同场景在对应类别中选择一个。优先级：用户明确点名的鞋品系列词 > 最贴切的鞋类描述词 > 最贴切的品牌语义词。"
-            "1. 鞋品系列词，当用户指定系列时，直接选取系列词作为 keyword：MEXICO 66、MEXICO 66 NM、MEXICO 66 SD、MEXICO 66 SLIP-ON、MEXICO 66 PARATY、"
+            "搜索关键词，与 category 二选一，不能同时填写。仅在以下候选词中选 1 个："
+            "1. 鞋品系列：MEXICO 66、MEXICO 66 NM、MEXICO 66 SD、MEXICO 66 SLIP-ON、MEXICO 66 PARATY、"
             "MEXICO 66 TGRS、SLIP-ON、TOKUTEN、SERRANO、GSM、EDR 78、DELECITY、LAWNSHIP、ULTIMATE 81、"
             "TIGER CORSAIR、BIG LOGO TRAINER、TIGRUN、TIGTRAIL、TRASPIKE、DENTIGRE、DELEGATION、"
             "ADMIX TRAINER、MOAL 77、COLORADO EIGHTY-FIVE、COLESNE、OHBORI、REBILAC、TSUNAHIKI、"
             "TIGER MOC、TIGER RODEANO、WINTER HEAVEN、SIDE GORE BOOT、LACE-UP、BLUCHER、TIGER LOAFER。"
-            "2. 鞋类描述词，当用户未指定系列时，，根据用户描述在下列词汇中选择最贴切的词："
-            "经典、复古、一脚蹬、无鞋带、芭蕾风、德训、赛车、薄底、平板鞋、系带。"
-            "3. 品牌语义词，当 category 为非鞋靴时，选择下列词汇中最贴切用户描述的词："
-            "印花、图案、刺绣、贴布绣、水洗、扎染、牛仔、针织、皮质、条纹、格纹、花卉、涂鸦、拼接、撞色、铆钉、亮片、漆皮、蕾丝、"
+            "2. 鞋类描述：经典、复古、一脚蹬、无鞋带、芭蕾风、德训、赛车、薄底、平板鞋、系带。"
+            "3. 品牌语义：印花、图案、刺绣、贴布绣、水洗、扎染、牛仔、针织、皮质、条纹、格纹、花卉、涂鸦、拼接、撞色、铆钉、亮片、漆皮、蕾丝、"
             "经典、纯色、简约、复古、法式、度假、飞行员、工装、优雅、个性、休闲、时尚、宽松、修身、阔腿、直筒、短袖、长袖、无袖、"
             "连帽、套头、拉链、开衫、圆领、吊带、双排扣、防风、铺棉、厚底。"
         ),
@@ -213,9 +206,8 @@ class GetOnitsukaProductDetailInput(BaseModel):
     product_id: int = Field(
         description="商品 ID。通常来自 search_products 的返回结果。"
     )
-    color_id: Optional[int] = Field(
-        default=None,
-        description="可选颜色 ID。若留空，工具会优先使用此前搜索结果缓存的默认颜色 ID。",
+    color_id: int = Field(
+        description="颜色 ID，必填。通常来自 search_products 的返回结果。product_id 和 color_id 必须同时提供，不允许留空。",
     )
 
 
@@ -884,8 +876,8 @@ async def _run_cursor_page(cursor_payload: CursorPayload) -> Dict[str, Any]:
     description=(
         "Search Onitsuka Tiger products. "
         "At least one effective parameter is required; any one of category, keyword, gender, size, color, price, sort, or cursor is enough to search. "
-        "Pass one category, one precise keyword, and simple filters. "
-        "If category is already specific, keyword can be empty. "
+        "category 和 keyword 二选一，不能同时传。选 category 时 keyword 必须空，选 keyword 时 category 必须空。"
+        "Pass simple filters when needed. "
         "For new arrivals/latest products, passing only sort='new' is valid and should browse latest products. "
         "If the user asks to browse all products or gives no usable search condition, call with empty category/keyword/filters and an explicit sort when needed. "
         "Reuse next_cursor verbatim for pagination. "
@@ -1014,7 +1006,7 @@ async def search_products(
 
 @tool("get_product_detail", args_schema=GetOnitsukaProductDetailInput)
 async def get_product_detail(
-    product_id: int, color_id: Optional[int] = None
+    product_id: int, color_id: int
 ) -> Dict[str, Any]:
     """读取商品详情；用于获取商品的尺码 / 库存 / 可选颜色。"""
     resolved_color_id = color_id or get_cached_default_color(product_id)
@@ -1033,4 +1025,3 @@ async def get_product_detail(
     adapted = adapt_product_detail(result.get("data") or {})
     push_ticket_interaction_source({"products": [adapted]})
     return adapted
-

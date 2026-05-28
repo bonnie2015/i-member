@@ -12,7 +12,7 @@ def read_file(path: str) -> str:
     """读取项目内文件内容。可用于查询政策、规则等知识文档。
 
     Args:
-        path: 相对路径，如 "app/skills/ticket/refund-ticket/policy.md"
+        path: 文件路径
 
     Returns:
         文件内容；若文件不存在则返回提示。

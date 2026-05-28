@@ -29,7 +29,7 @@
     "expect": {
       "step_status": "done",
       "try_process_contains": ["get_order_detail", "finish_step"],
-      "slots": {"order_id": "ORD-TEST-002", "product_name": "MEXICO 66 休闲鞋 白色"}
+      "slots": {"order_id": "ORD-TEST-002", "product_name": "MEXICO 66 SD 休闲鞋 米色/黑色"}
     }
   },
   {
