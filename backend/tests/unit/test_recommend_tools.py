@@ -32,20 +32,25 @@ class TestToolControlMessage:
     def _agent(self):
         return RecommendAgent()
 
-    def test_remaining_1_returns_warning(self):
+    def test_tool_count_0_returns_none(self):
+        agent = self._agent()
+        msg = agent._tool_control_message(tool_count=0)
+        assert msg is None
+
+    def test_tool_count_1_suggests_stop(self):
+        agent = self._agent()
+        msg = agent._tool_control_message(tool_count=1)
+        assert msg is not None
+        assert "优先调用 reply_with_products" in str(msg.content)
+
+    def test_tool_count_2_force_last(self):
         agent = self._agent()
         msg = agent._tool_control_message(tool_count=2)
         assert msg is not None
         assert "只剩最后一次" in str(msg.content)
 
-    def test_remaining_0_returns_error(self):
+    def test_tool_count_3_force_stop(self):
         agent = self._agent()
         msg = agent._tool_control_message(tool_count=3)
         assert msg is not None
         assert "已用完" in str(msg.content)
-
-    def test_remaining_3_returns_info(self):
-        agent = self._agent()
-        msg = agent._tool_control_message(tool_count=0)
-        assert msg is not None
-        assert "最多 3 次" in str(msg.content)

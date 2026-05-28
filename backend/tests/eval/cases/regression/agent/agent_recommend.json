@@ -23,7 +23,7 @@
   {
     "agent": "recommend",
     "task_id": "rec_002",
-    "description": "查商品其他颜色/尺码",
+    "description": "搜索墨西哥66系列",
     "trials": 1,
     "setup": {
       "run_mode": "agent",
@@ -31,20 +31,15 @@
         "thread_id": "auto",
         "user_id": "test_user_001",
         "messages": [
-          {"role": "assistant", "content": "为你找到了MEXICO 66 SD 米色/黑色款"},
-          {"role": "human", "content": "这款有其他颜色吗？尺码全吗？"}
+          {"role": "human", "content": "我想看看墨西哥66"}
         ],
         "extra": {
-          "recommend_context": {
-            "summary": "用户想要MEXICO 66 SD",
-            "anchor_products": [{"product_id": 56077, "color_id": 19297, "name": "MEXICO 66 SD 米色/黑色"}],
-            "cursor": {}
-          }
+          "recommend_context": {"summary": "", "anchor_products": [], "cursor": {}}
         }
       }
     },
     "expect": {
-      "tool_trace_contains": ["get_product_detail"],
+      "products_not_empty": true,
       "final_reply_not_empty": true
     }
   },
@@ -65,7 +60,7 @@
         "extra": {
           "recommend_context": {
             "summary": "上一轮推荐了MEXICO 66 SD 米色款，用户不喜欢",
-            "anchor_products": [{"product_id": 56077, "color_id": 19297, "name": "MEXICO 66 SD 米色/黑色"}],
+            "anchor_products": [{"source": "上一轮搜索命中", "product_id": 56077, "color_id": 19297, "name": "MEXICO 66 SD 米色/黑色", "color_name": "米色/黑色"}],
             "cursor": {}
           }
         }
