@@ -44,7 +44,7 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - REDIS_URL=${REDIS_URL}
-      - SCRM_URL=${SCRM_URL}
+      - BUSINESS_API_URL=${BUSINESS_API_URL}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
@@ -84,7 +84,7 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - REDIS_URL=${REDIS_URL}
-      - SCRM_URL=${SCRM_URL}
+      - BUSINESS_API_URL=${BUSINESS_API_URL}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}

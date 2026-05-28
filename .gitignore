@@ -62,7 +62,7 @@ test/
 .DS_Store
 .claude/
 .agents/
-skills-snapshot.md
+*-skills-snapshot.md
 CLAUDE.md
 AGENTS.md
 backend/AGENTS.md

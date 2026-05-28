@@ -18,7 +18,7 @@ _SCRM_GLOBAL_LIMIT_PER_MIN = 300
 
 
 def _build_base_url() -> str:
-    return settings.scrm_url.rstrip("/")
+    return settings.business_api_url.rstrip("/")
 
 
 def _build_headers() -> Dict[str, str]:
