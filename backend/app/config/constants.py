@@ -2,7 +2,7 @@
 
 # ---- ticket executor ----
 TICKET_EXECUTOR_MAX_TOOL_CALLS = 5
-TRY_PROCESS_MAX_TOKENS = 3000
+TRY_PROCESS_MAX_TOKENS = 2500
 
 # ---- ticket planner / replan ----
 MAX_REPLAN = 2

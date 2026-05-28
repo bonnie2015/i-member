@@ -1,7 +1,16 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from tests.eval.runner import EvalRunner
+
+
+@pytest.fixture(scope="module")
+def event_loop():
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 
 @pytest.mark.asyncio

@@ -52,7 +52,7 @@
         "user_id": "test_user_001",
         "extra": {
           "trace": [
-            {"tool": "onitsuka_search_products_hybrid", "args": {"query": "跑步鞋"}, "result": [{"product_id": 56077, "color_id": 19297, "name": "MEXICO 66 SD 休闲鞋 米色/黑色", "price": 1290}, {"product_id": 46730, "color_id": 5508, "name": "MEXICO 66 SD VIN 休闲鞋 白色/蓝色", "price": 1390}]},
+            {"tool": "search_products", "args": {"query": "跑步鞋"}, "result": [{"product_id": 56077, "color_id": 19297, "name": "MEXICO 66 SD 休闲鞋 米色/黑色", "price": 1290}, {"product_id": 46730, "color_id": 5508, "name": "MEXICO 66 SD VIN 休闲鞋 白色/蓝色", "price": 1390}]},
             {"tool": "reply_with_products", "args": {"products": [{"product_id": 56077, "color_id": 19297}]}, "result": {"reply": "为您推荐MEXICO 66 SD 米色款"}}
           ]
         },
@@ -84,7 +84,7 @@
             "cursor": {}
           },
           "trace": [
-            {"tool": "onitsuka_search_products_hybrid", "args": {"query": "白色休闲鞋"}, "result": [{"product_id": 46641, "color_id": 5101, "name": "MEXICO 66 休闲鞋 白色", "price": 990}]},
+            {"tool": "search_products", "args": {"query": "白色休闲鞋"}, "result": [{"product_id": 46641, "color_id": 5101, "name": "MEXICO 66 休闲鞋 白色", "price": 990}]},
             {"tool": "reply_with_products", "args": {"products": [{"product_id": 46641, "color_id": 5101}]}, "result": {"reply": "为您推荐白色款"}}
           ]
         },

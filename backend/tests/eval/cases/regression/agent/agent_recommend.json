@@ -16,7 +16,7 @@
       }
     },
     "expect": {
-      "tool_trace_contains": ["onitsuka_search_products_hybrid"],
+      "tool_trace_contains": ["search_products"],
       "final_reply_not_empty": true
     }
   },
@@ -44,7 +44,7 @@
       }
     },
     "expect": {
-      "tool_trace_contains": ["onitsuka_get_product_detail"],
+      "tool_trace_contains": ["get_product_detail"],
       "final_reply_not_empty": true
     }
   },
@@ -113,7 +113,7 @@
       }
     },
     "expect": {
-      "tool_trace_contains": ["onitsuka_search_products_hybrid"],
+      "tool_trace_contains": ["search_products"],
       "products_not_empty": true,
       "final_reply_not_empty": true
     }

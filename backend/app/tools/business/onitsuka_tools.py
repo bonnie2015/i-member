@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any, Dict, List, Literal, Optional, TypedDict, get_args
 
-from langchain_core.tools import BaseTool, tool
+from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from app.tools.business.execution_context import (
@@ -18,9 +18,9 @@ from app.tools.business.onitsuka_adapter import (
     visible_products,
 )
 from app.tools.business.onitsuka_client import (
-    get_product_detail,
-    list_products,
-    search_products,
+    get_product_detail as _client_get_product_detail,
+    list_products as _client_list_products,
+    search_products as _client_search_products,
 )
 from app.tools.business.onitsuka_semantics import (
     BRAND_QUERY_ALIASES,
@@ -211,7 +211,7 @@ class SearchByIntentInput(BaseModel):
 
 class GetOnitsukaProductDetailInput(BaseModel):
     product_id: int = Field(
-        description="商品 ID。通常来自 onitsuka_search_products_hybrid 的返回结果。"
+        description="商品 ID。通常来自 search_products 的返回结果。"
     )
     color_id: Optional[int] = Field(
         default=None,
@@ -670,7 +670,7 @@ async def _run_list_products(
     )
     list_sort = normalize_sort(sort, default="new") or "new"
     list_where = _full_where_payload(where)
-    result = await list_products(
+    result = await _client_list_products(
         category_id=_ALL_PRODUCTS_CATEGORY_ID,
         where=list_where,
         sort=list_sort,
@@ -758,7 +758,7 @@ async def _run_search_paths(
                 if products:
                     return products, selected_path, selected_where, total, cursor
                 continue
-            result = await search_products(
+            result = await _client_search_products(
                 keyword=path["query"],
                 where=where,
                 sort=sort,
@@ -830,7 +830,7 @@ async def _run_cursor_page(cursor_payload: CursorPayload) -> Dict[str, Any]:
     query = str(cursor_payload["query"])
     where = dict(cursor_payload["filters"] or {})
     sort = normalize_sort(str(cursor_payload["sort"] or ""), default="")
-    result = await search_products(
+    result = await _client_search_products(
         keyword=query, where=where, sort=sort, limit=page_size, page=page
     )
     if "error" in result:
@@ -879,7 +879,7 @@ async def _run_cursor_page(cursor_payload: CursorPayload) -> Dict[str, Any]:
 
 
 @tool(
-    "onitsuka_search_products_hybrid",
+    "search_products",
     args_schema=SearchByIntentInput,
     description=(
         "Search Onitsuka Tiger products. "
@@ -894,7 +894,7 @@ async def _run_cursor_page(cursor_payload: CursorPayload) -> Dict[str, Any]:
         "cursor describes the whole returned batch, not a single product."
     ),
 )
-async def onitsuka_search_products_hybrid(
+async def search_products(
     gender: GenderFilterValue = "",
     size: List[str] | None = None,
     color: ColorFilterValue = "",
@@ -1012,20 +1012,20 @@ async def onitsuka_search_products_hybrid(
     return result
 
 
-@tool("onitsuka_get_product_detail", args_schema=GetOnitsukaProductDetailInput)
-async def onitsuka_get_product_detail(
+@tool("get_product_detail", args_schema=GetOnitsukaProductDetailInput)
+async def get_product_detail(
     product_id: int, color_id: Optional[int] = None
 ) -> Dict[str, Any]:
     """读取商品详情；用于获取商品的尺码 / 库存 / 可选颜色。"""
     resolved_color_id = color_id or get_cached_default_color(product_id)
     if not resolved_color_id:
         return {
-            "error": "缺少 color_id，且当前没有缓存到该商品的默认颜色。请先调用 onitsuka_search_products_hybrid。",
+            "error": "缺少 color_id，且当前没有缓存到该商品的默认颜色。请先调用 search_products。",
             "error_code": "ONITSUKA_COLOR_ID_REQUIRED",
             "product_id": product_id,
         }
 
-    result = await get_product_detail(
+    result = await _client_get_product_detail(
         product_id=int(product_id), color_id=int(resolved_color_id)
     )
     if "error" in result:
@@ -1034,6 +1034,3 @@ async def onitsuka_get_product_detail(
     push_ticket_interaction_source({"products": [adapted]})
     return adapted
 
-
-def get_onitsuka_tools() -> List[BaseTool]:
-    return [onitsuka_search_products_hybrid]

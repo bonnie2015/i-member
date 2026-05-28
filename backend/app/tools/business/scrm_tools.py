@@ -13,6 +13,10 @@ import httpx
 from app.config.logging import get_logger
 from app.tools.business.execution_context import push_ticket_interaction_source
 from app.tools.business.scrm_client import call_scrm_endpoint
+from app.tools.business.onitsuka_tools import (
+    search_products,
+    get_product_detail,
+)
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
@@ -655,6 +659,8 @@ TOOLS: List[BaseTool] = [
     create_ticket,
     get_ticket,
     get_tickets,
+    search_products,
+    get_product_detail,
 ]
 
 

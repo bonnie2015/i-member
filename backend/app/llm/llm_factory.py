@@ -64,13 +64,13 @@ def _get_remote_llm(role: str) -> BaseChatModel:
         raise RuntimeError("DEEPSEEK_API_KEY is not set.")
 
     model = "deepseek-chat"
-    llm_kwargs: dict = dict(
+    kwargs: dict = dict(
         model=model,
         api_key=settings.deepseek_api_key,
         timeout=90.0 if role == "judge" else 60.0,
     )
     if role != "judge":
-        llm_kwargs["temperature"] = 0.3
-    llm = ChatDeepSeek(**llm_kwargs)
+        kwargs["temperature"] = 0.3
+    llm = ChatDeepSeek(**kwargs)
     logger.info("Remote LLM ready: model=%s role=%s", model, role)
     return llm

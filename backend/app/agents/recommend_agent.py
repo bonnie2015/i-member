@@ -17,8 +17,7 @@ from app.llm.llm_factory import get_llm
 from app.llm.runtime import with_usage_logging
 from app.prompts.prompt_builder import build_recommend_system_prompt
 from app.tools import (
-    get_onitsuka_tools,
-    onitsuka_get_product_detail,
+    get_scrm_tools,
     reply_with_products_tool,
 )
 from app.tools.memory_tools import get_memory_tools
@@ -277,17 +276,20 @@ class RecommendAgent(BaseAgent):
 
     def _get_search_tools(self) -> List[Any]:
         if not self._search_tools:
-            self._search_tools = [*get_onitsuka_tools()]
+            all_scrm = {t.name: t for t in get_scrm_tools()}
+            self._search_tools = [all_scrm["search_products"]] if "search_products" in all_scrm else []
         return self._search_tools
 
     def _get_all_tools(self) -> List[Any]:
         if not self._all_tools:
+            all_scrm = {t.name: t for t in get_scrm_tools()}
             self._all_tools = [
                 *self._get_search_tools(),
-                onitsuka_get_product_detail,
+                all_scrm.get("get_product_detail"),
                 *get_size_guide_tools(),
                 reply_with_products_tool,
             ]
+            self._all_tools = [t for t in self._all_tools if t is not None]
         return self._all_tools
 
     @staticmethod

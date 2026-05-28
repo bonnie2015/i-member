@@ -1,7 +1,7 @@
 ---
 name: unsatisfy-ticket
 description: 处理质量问题与投诉诉求。
-available_tools: get_user_orders, get_order_detail, onitsuka_get_product_detail, create_ticket, get_ticket, get_tickets
+available_tools: get_user_orders, get_order_detail, get_product_detail, create_ticket, get_ticket, get_tickets
 clarify_labels: 质量问题, 投诉, 破损瑕疵, 服务不满
 ---
 
@@ -104,7 +104,7 @@ clarify_labels: 质量问题, 投诉, 破损瑕疵, 服务不满
 
 - `get_user_orders`：未提供订单号，需要先定位关联订单时使用。
 - `get_order_detail`：已有订单号，需要确认订单和商品明细时使用。
-- `onitsuka_get_product_detail`：质量问题场景下，需要补充商品详情时使用。
+- `get_product_detail`：质量问题场景下，需要补充商品详情时使用。
 - `create_ticket`：质量问题或投诉信息已收敛，可以提交工单时使用。
 - `get_ticket`：已有工单号，查询单个工单进度时使用。
 - `get_tickets`：未提供工单号，需要先查询工单候选列表时使用。

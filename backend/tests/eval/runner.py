@@ -567,7 +567,6 @@ class EvalRunner:
                 if role != "user":
                     continue
                 content = turn.get("content", "")
-                t0 = time.perf_counter()
                 resp = await client.post(
                     "/api/v1/chat",
                     json={

@@ -6,3 +6,6 @@ USER_PROFILE_CACHE_KEY = "uc:profile:{user_id}:{fields_key}"
 USER_FACTS_KEY = "uf:facts:{user_id}"
 
 SCRM_RATE_LIMIT_KEY = "scrm:rate_limit:{user_id}:{minute_bucket}"
+SCRM_RATE_LIMIT_GLOBAL_KEY = "scrm:rate_limit:global:{minute_bucket}"
+ONITSUKA_RATE_LIMIT_KEY = "onitsuka:rate_limit:{user_id}:{minute_bucket}"
+ONITSUKA_RATE_LIMIT_GLOBAL_KEY = "onitsuka:rate_limit:global:{minute_bucket}"

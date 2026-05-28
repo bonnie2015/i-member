@@ -1,7 +1,7 @@
 ---
 name: refund-ticket
 description: 处理退货相关诉求。
-available_tools: get_user_orders, onitsuka_get_product_detail, create_ticket, get_ticket, get_tickets, onitsuka_search_products_hybrid, read_file
+available_tools: get_user_orders, get_product_detail, create_ticket, search_products, read_file
 clarify_labels: 退货, 退货进度查询
 ---
 
@@ -69,12 +69,9 @@ clarify_labels: 退货, 退货进度查询
 ## 工具使用时机
 
 - `get_user_orders`：用户未提供订单号，需要先定位订单候选时使用，控制搜索数量，一次最多搜索5条。
-- `onitsuka_get_product_detail`：需要获取待售后商品其他颜色、尺码等信息时使用。
-- `onitsuka_search_products_hybrid`：需要搜索商品时使用。
+- `get_product_detail`：需要获取待售后商品其他颜色、尺码等信息时使用。
+- `search_products`：需要搜索商品时使用。
 - `create_ticket`：退货、质量问题等信息已收敛，可以创建工单时使用。
-- `get_ticket`：已有工单号，查询单个工单进度时使用。
-- `get_tickets`：未提供工单号，需要查询工单候选列表并进一步确认目标工单时使用。
-
 补充约束：
 
 - 订单类写操作前，务必确认 消费渠道、目标商品、数量和问题描述已收敛。

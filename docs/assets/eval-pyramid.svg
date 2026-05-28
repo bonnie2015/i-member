@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 550" width="800" height="550">
+  <style>
+    text { font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Microsoft YaHei", "Microsoft JhengHei", "SimHei", sans-serif; }
+    .title { font-size: 22px; font-weight: 700; fill: #111827; }
+    .section-title { font-size: 18px; font-weight: 700; }
+    .section-detail { font-size: 12px; font-weight: 500; fill: #6b7280; }
+    .section-badge { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; }
+    .lifecycle-title { font-size: 14px; font-weight: 700; fill: #111827; }
+    .lifecycle-node-label { font-size: 11px; font-weight: 700; }
+    .lifecycle-node-sub { font-size: 9px; fill: #9ca3af; }
+    .note-text { font-size: 10px; font-weight: 400; fill: #9ca3af; }
+    .note-highlight { font-size: 10px; font-weight: 600; fill: #c2410c; }
+  </style>
+  <defs>
+    <marker id="arrow-lifecycle" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#dc2626"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#6b7280"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+  <rect width="800" height="550" fill="#ffffff"/>
+  <text x="400" y="38" text-anchor="middle" class="title">i-member 评测分层体系</text>
+  <polygon points="144.7,350 555.3,350 660,480 40,480" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.8" filter="url(#shadow)"/>
+  <text x="350" y="388" text-anchor="middle" class="section-title" fill="#16a34a">单元测试</text>
+  <text x="350" y="410" text-anchor="middle" class="section-detail">纯函数 · CodeGrader</text>
+  <text x="350" y="428" text-anchor="middle" class="section-detail">秒级执行 · CI 每次提交</text>
+  <rect x="320" y="442" width="60" height="18" rx="4" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+  <text x="350" y="454" text-anchor="middle" class="section-badge" fill="#16a34a">FOUNDATION</text>
+  <polygon points="245.3,225 454.7,225 555.3,350 144.7,350" fill="#eff6ff" stroke="#2563eb" stroke-width="1.8" filter="url(#shadow)"/>
+  <text x="350" y="260" text-anchor="middle" class="section-title" fill="#2563eb">Agent 单测</text>
+  <text x="350" y="282" text-anchor="middle" class="section-detail">单 Agent 行为 · CodeGrader 断言</text>
+  <text x="350" y="300" text-anchor="middle" class="section-detail">state 状态 · 工具链 · 状态转换</text>
+  <rect x="310" y="316" width="80" height="18" rx="4" fill="#dbeafe" stroke="#93c5fd" stroke-width="1"/>
+  <text x="350" y="328" text-anchor="middle" class="section-badge" fill="#2563eb">INTEGRATION</text>
+  <polygon points="350,95 454.7,225 245.3,225" fill="#faf5ff" stroke="#9333ea" stroke-width="1.8" filter="url(#shadow)"/>
+  <text x="350" y="145" text-anchor="middle" class="section-title" fill="#9333ea">E2E 全链路</text>
+  <text x="350" y="167" text-anchor="middle" class="section-detail">用户模拟器驱动</text>
+  <text x="350" y="185" text-anchor="middle" class="section-detail">ModelGrader 三维度 + Human 抽检</text>
+  <rect x="315" y="198" width="70" height="18" rx="4" fill="#ede9fe" stroke="#c4b5fd" stroke-width="1"/>
+  <text x="350" y="210" text-anchor="middle" class="section-badge" fill="#9333ea">END-TO-END</text>
+  <rect x="675" y="130" width="110" height="320" rx="10" fill="#fef2f2" stroke="#fecaca" stroke-width="1.5"/>
+  <text x="730" y="158" text-anchor="middle" class="lifecycle-title">测试用例</text>
+  <text x="730" y="176" text-anchor="middle" class="lifecycle-title">生命周期</text>
+  <line x1="730" y1="195" x2="730" y2="389" stroke="#e5e7eb" stroke-width="1.5" stroke-dasharray="4,4"/>
+  <rect x="692" y="210" width="76" height="34" rx="8" fill="#ffffff" stroke="#c2410c" stroke-width="1.8"/>
+  <text x="730" y="226" text-anchor="middle" class="lifecycle-node-label" fill="#c2410c">capability</text>
+  <text x="730" y="238" text-anchor="middle" class="lifecycle-node-sub">能力测试</text>
+  <line x1="730" y1="248" x2="730" y2="270" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrow-lifecycle)"/>
+  <rect x="695" y="258" width="70" height="14" rx="4" fill="#ffffff" opacity="0.9"/>
+  <text x="730" y="269" text-anchor="middle" style="font-size:9px;font-weight:600;fill:#c2410c;">≥ 90% pass³</text>
+  <rect x="690" y="285" width="80" height="34" rx="8" fill="#ffffff" stroke="#c2410c" stroke-width="1.8"/>
+  <text x="730" y="301" text-anchor="middle" class="lifecycle-node-label" fill="#c2410c">regression</text>
+  <text x="730" y="313" text-anchor="middle" class="lifecycle-node-sub">回归守护</text>
+  <line x1="730" y1="323" x2="730" y2="345" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrow-lifecycle)"/>
+  <rect x="692" y="355" width="76" height="34" rx="8" fill="#ffffff" stroke="#c2410c" stroke-width="1.8"/>
+  <text x="730" y="371" text-anchor="middle" class="lifecycle-node-label" fill="#c2410c">CI</text>
+  <text x="730" y="383" text-anchor="middle" class="lifecycle-node-sub">安全兜底</text>
+  <line x1="455" y1="160" x2="675" y2="227" stroke="#d1d5db" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="455" y1="288" x2="675" y2="302" stroke="#d1d5db" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="555" y1="415" x2="675" y2="372" stroke="#d1d5db" stroke-width="1" stroke-dasharray="3,3"/>
+  <rect x="40" y="500" width="600" height="32" rx="6" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="340" y="520" text-anchor="middle" class="note-text">CI 策略：push 跑单元测试 + Agent 单测 ｜ PR 按 diff 跑对应层测试 ｜ merge main 跑全量 regression</text>
+</svg>

@@ -54,16 +54,16 @@
     "items": [
       {
         "order_item_id": "OI-TEST-002-1",
-        "product_id": 46641,
-        "color_id": 5101,
-        "sku_id": "6936780191093",
-        "style": "1183A869-100",
+        "product_id": 56077,
+        "color_id": 19297,
+        "sku_id": "6936780192786",
+        "style": "1183A872-255",
         "size": "37",
-        "name": "MEXICO 66 休闲鞋 白色",
+        "name": "MEXICO 66 SD 休闲鞋 米色/黑色",
         "qty": 1,
-        "price": 990,
-        "image": "https://assetsprod.onitsukatiger.com/goods/1183A869-100/1183A869-100-1.jpg",
-        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/46641-5101"
+        "price": 1290,
+        "image": "https://assetsprod.onitsukatiger.com/goods/1183A872-255/1183A872-255-1.jpg",
+        "official_url": "https://www.onitsukatiger.com/cn/zh-cn/detail/56077-19297"
       }
     ]
   },

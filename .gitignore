@@ -4,11 +4,10 @@
 !.env.example
 !.env.ci
 
-# 内部文档
+# 内部文档（默认忽略 docs/，仅放行公开文件）
 docs/*
-!docs/ENGINEERING.md
 !docs/DISCLAIMER.md
-!docs/architecture-*.jpg
+!docs/assets/
 
 # Python
 __pycache__/

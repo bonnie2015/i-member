@@ -15,8 +15,8 @@
         "steps": [
           {
             "goal": "查询订单 ORD-TEST-002 的详情和商品信息，确认后直接 finish（单商品无需选）",
-            "completion_signal": "已获取订单详情并确认可退货商品",
-            "target_slots": ["order_id", "product_name", "reason"],
+            "completion_signal": "已获取订单详情",
+            "target_slots": ["order_id", "product_name"],
             "available_tools": ["get_user_orders", "get_order_detail"],
             "step_status": "pending",
             "failed_reason": "",

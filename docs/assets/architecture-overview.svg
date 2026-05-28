@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 680" width="1060" height="680">
+<style>text{font-family:"Helvetica Neue",Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;}</style>
+<defs>
+<marker id="ab" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2563eb"/></marker>
+<marker id="ap" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#9333ea"/></marker>
+<marker id="ar" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#dc2626"/></marker>
+<marker id="ag" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#6b7280"/></marker>
+<filter id="sh"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.08"/></filter>
+</defs>
+<rect width="1060" height="680" fill="#ffffff"/>
+<text x="530" y="34" text-anchor="middle" font-size="21" font-weight="700" fill="#111827">i-member 系统架构</text>
+<text x="530" y="54" text-anchor="middle" font-size="12" fill="#9ca3af">LangGraph 多 Agent 智能导购 · 3 子图协作</text>
+<circle cx="530" cy="92" r="15" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.5"/>
+<circle cx="530" cy="87" r="4" fill="#93c5fd"/>
+<path d="M 520,103 Q 530,94 540,103" fill="none" stroke="#93c5fd" stroke-width="1.5"/>
+<text x="530" y="122" text-anchor="middle" font-size="13" font-weight="600" fill="#111827">User</text>
+<rect x="420" y="140" width="220" height="58" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="2.2" filter="url(#sh)"/>
+<text x="530.0" y="164.0" text-anchor="middle" font-size="14" font-weight="700" fill="#111827">Router</text>
+<text x="530.0" y="183.0" text-anchor="middle" font-size="11" fill="#6b7280">意图分类：ticket / qa / recommend</text>
+<line x1="530" y1="107" x2="530" y2="140" stroke="#2563eb" stroke-width="2" marker-end="url(#ab)"/>
+<path d="M 530,198 L 530,222 L 260,222 L 260,252" fill="none" stroke="#2563eb" stroke-width="2" marker-end="url(#ab)"/>
+<rect x="370.0" y="212" width="31.0" height="16" rx="4" fill="#ffffff" opacity="0.92"/>
+<text x="385.5" y="223" text-anchor="middle" font-size="10" font-weight="600" fill="#6b7280">qa</text>
+<line x1="530" y1="198" x2="530" y2="252" stroke="#2563eb" stroke-width="2" marker-end="url(#ab)"/>
+<rect x="519.5" y="228" width="65.0" height="16" rx="4" fill="#ffffff" opacity="0.92"/>
+<text x="552" y="239" text-anchor="middle" font-size="10" font-weight="600" fill="#6b7280">ticket</text>
+<path d="M 530,198 L 530,222 L 800,222 L 800,252" fill="none" stroke="#2563eb" stroke-width="2" marker-end="url(#ab)"/>
+<rect x="620.0" y="212" width="90.5" height="16" rx="4" fill="#ffffff" opacity="0.92"/>
+<text x="665.25" y="223" text-anchor="middle" font-size="10" font-weight="600" fill="#6b7280">recommend</text>
+<rect x="140" y="260" width="240" height="265" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="260" y="282" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8">QA 子图</text>
+<rect x="165" y="330" width="190" height="70" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.8" filter="url(#sh)"/>
+<text x="260.0" y="360.0" text-anchor="middle" font-size="14" font-weight="700" fill="#111827">qa_node</text>
+<text x="260.0" y="379.0" text-anchor="middle" font-size="11" fill="#6b7280">RAG 检索 + 生成回答</text>
+<text x="260" y="420" text-anchor="middle" font-size="10" fill="#9ca3af">Token 超限 → 对话压缩</text>
+<rect x="400" y="260" width="260" height="265" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="530" y="282" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8">TICKET 子图</text>
+<rect x="420" y="298" width="220" height="36" rx="7" fill="#ffffff" stroke="#d1d5db" stroke-width="1.4" filter="url(#sh)"/>
+<text x="530.0" y="312" text-anchor="middle" font-size="10" font-weight="700" fill="#9ca3af">选技能</text>
+<text x="530.0" y="324" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">guard_node</text>
+<rect x="420" y="340" width="220" height="36" rx="7" fill="#ffffff" stroke="#d1d5db" stroke-width="1.4" filter="url(#sh)"/>
+<text x="530.0" y="354" text-anchor="middle" font-size="10" font-weight="700" fill="#9ca3af">生成步骤</text>
+<text x="530.0" y="366" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">plan_node</text>
+<rect x="420" y="382" width="220" height="42" rx="7" fill="#ffffff" stroke="#d1d5db" stroke-width="1.4" filter="url(#sh)"/>
+<text x="530.0" y="396" text-anchor="middle" font-size="10" font-weight="700" fill="#9ca3af">手动 ReAct · 调工具</text>
+<text x="530.0" y="414" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">executor_node</text>
+<rect x="420" y="430" width="220" height="36" rx="7" fill="#ffffff" stroke="#d1d5db" stroke-width="1.4" filter="url(#sh)"/>
+<text x="530.0" y="444" text-anchor="middle" font-size="10" font-weight="700" fill="#9ca3af">判断进度</text>
+<text x="530.0" y="456" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">reflect_node</text>
+<rect x="420" y="472" width="220" height="36" rx="7" fill="#ffffff" stroke="#d1d5db" stroke-width="1.4" filter="url(#sh)"/>
+<text x="530.0" y="486" text-anchor="middle" font-size="10" font-weight="700" fill="#9ca3af">最终回复 + 工单卡</text>
+<text x="530.0" y="498" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">finalize_node</text>
+<line x1="530" y1="334" x2="530" y2="340" stroke="#6b7280" stroke-width="1.2" marker-end="url(#ag)"/>
+<line x1="530" y1="376" x2="530" y2="382" stroke="#6b7280" stroke-width="1.2" marker-end="url(#ag)"/>
+<line x1="530" y1="424" x2="530" y2="430" stroke="#6b7280" stroke-width="1.2" marker-end="url(#ag)"/>
+<line x1="530" y1="466" x2="530" y2="472" stroke="#6b7280" stroke-width="1.2" marker-end="url(#ag)"/>
+<path d="M 420,448 L 404,448 L 404,358 L 420,358" fill="none" stroke="#dc2626" stroke-width="1.3" stroke-dasharray="6,4" marker-end="url(#ar)"/>
+<text x="397" y="404" text-anchor="middle" font-size="9" font-weight="600" fill="#dc2626">replan</text>
+<rect x="680" y="260" width="240" height="265" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+<text x="800" y="282" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8">RECOMMEND 子图</text>
+<rect x="705" y="315" width="190" height="40" rx="7" fill="#ffffff" stroke="#d1d5db" stroke-width="1.4" filter="url(#sh)"/>
+<text x="800.0" y="329" text-anchor="middle" font-size="10" font-weight="700" fill="#9ca3af">压缩上下文 · 判断完成</text>
+<text x="800.0" y="345" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">recommend_guard_node</text>
+<rect x="705" y="395" width="190" height="55" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.8" filter="url(#sh)"/>
+<text x="800.0" y="417.5" text-anchor="middle" font-size="14" font-weight="700" fill="#111827">recommend_node</text>
+<text x="800.0" y="436.5" text-anchor="middle" font-size="11" fill="#6b7280">ReAct 搜索 + 展示卡片</text>
+<text x="800" y="468" text-anchor="middle" font-size="10" fill="#9ca3af">轮次上限 5 · 多轮 guard</text>
+<line x1="800" y1="355" x2="800" y2="395" stroke="#6b7280" stroke-width="1.2" marker-end="url(#ag)"/>
+<rect x="200" y="555" width="660" height="52" rx="8" fill="#ffffff" stroke="#6b7280" stroke-width="2.2" filter="url(#sh)"/>
+<text x="530.0" y="576.0" text-anchor="middle" font-size="14" font-weight="700" fill="#111827">Post-Processing</text>
+<text x="530.0" y="595.0" text-anchor="middle" font-size="11" fill="#6b7280">summary_agent + user_facts_agent（后台异步）</text>
+<line x1="260" y1="525" x2="260" y2="551" stroke="#2563eb" stroke-width="2" marker-end="url(#ab)"/>
+<line x1="530" y1="525" x2="530" y2="551" stroke="#2563eb" stroke-width="2" marker-end="url(#ab)"/>
+<line x1="800" y1="525" x2="800" y2="551" stroke="#2563eb" stroke-width="2" marker-end="url(#ab)"/>
+<rect x="140" y="630" width="780" height="36" rx="8" fill="#f9fafb" stroke="#e2e8f0" stroke-width="1"/>
+<text x="530" y="652" text-anchor="middle" font-size="11" fill="#6b7280">关键机制：技能渐进披露 · try_process 审计链 · 中断恢复 v3 · 服务切换（interaction card）</text>
+</svg>

@@ -2,7 +2,7 @@
     <skill>
         <name>refund-ticket</name>
         <description>处理退货相关诉求。</description>
-        <available_tools>get_user_orders, onitsuka_get_product_detail, create_ticket, get_ticket, get_tickets, onitsuka_search_products_hybrid, read_file</available_tools>
+        <available_tools>get_user_orders, get_product_detail, create_ticket, search_products, read_file</available_tools>
         <clarify_labels>退货, 退货进度查询</clarify_labels>
         <location>app/app/skills/ticket/refund-ticket/SKILL.md</location>
     </skill>
@@ -16,7 +16,7 @@
     <skill>
         <name>unsatisfy-ticket</name>
         <description>处理质量问题与投诉诉求。</description>
-        <available_tools>get_user_orders, get_order_detail, onitsuka_get_product_detail, create_ticket, get_ticket, get_tickets</available_tools>
+        <available_tools>get_user_orders, get_order_detail, get_product_detail, create_ticket, get_ticket, get_tickets</available_tools>
         <clarify_labels>质量问题, 投诉, 破损瑕疵, 服务不满</clarify_labels>
         <location>app/app/skills/ticket/unsatisfy-ticket/SKILL.md</location>
     </skill>
