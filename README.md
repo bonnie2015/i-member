@@ -44,19 +44,19 @@
 
 > 环境：DeepSeek Chat，Docker Compose 本地部署，单并发。MacBook Pro M1 Pro / 32GB RAM。
 
-**工单链路**：平均每轮对话 latency 7.49s，token usage 7193，冰点 2331，峰值 24591
-
 ![Ticket 链路](docs/assets/ticket-tracing.png)
 
 ![Ticket 链路](docs/assets/ticket-tracing2.png)
 
-**常规咨询**：平均每轮对话 latency 7.37s，token usage 6624，冰点 2351，峰值 15055
+**工单链路**：平均每轮对话 latency 7.49s，token usage 7193，冰点 2331，峰值 24591
 
 ![QA 链路](docs/assets/qa-tracing.png)
 
-**推荐场景**：平均每轮对话 latency 7.51s，token usage 7,521，冰点 4935 峰值 14280
+**常规咨询**：平均每轮对话 latency 7.37s，token usage 6624，冰点 2351，峰值 15055
 
 ![Recommend 链路](docs/assets/recommend-tracing.png)
+
+**推荐场景**：平均每轮对话 latency 7.51s，token usage 7,521，冰点 4935 峰值 14280
 
 **整体体验**：85% 以上对话 10s 内得到恢复，2～6s 覆盖较广，偶发极端情况会延长时间。token usage 在保证服务质量的前提下总体可控。
 
