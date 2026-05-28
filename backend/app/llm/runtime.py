@@ -57,7 +57,8 @@ def extract_usage(response: Any) -> dict[str, int]:
             return {
                 "prompt_tokens": pt,
                 "completion_tokens": ct,
-                "total_tokens": _coerce_int(response_metadata.get("total_tokens")) or (pt + ct),
+                "total_tokens": _coerce_int(response_metadata.get("total_tokens"))
+                or (pt + ct),
             }
         for key in ("token_usage", "usage"):
             usage_block = response_metadata.get(key)

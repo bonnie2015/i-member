@@ -100,10 +100,12 @@ async def call_onitsuka_v2(path: str, payload: Dict[str, Any]) -> Dict[str, Any]
             "request": payload,
         }
     except Exception as exc:
-        logger.warning("[onitsuka_client] call failed path=%s payload=%s err=%s",
-                        path,
-                        json.dumps(payload, ensure_ascii=False, default=str)[:300],
-                        exc)
+        logger.warning(
+            "[onitsuka_client] call failed path=%s payload=%s err=%s",
+            path,
+            json.dumps(payload, ensure_ascii=False, default=str)[:300],
+            exc,
+        )
         return {
             "error": str(exc),
             "error_code": "ONITSUKA_CALL_FAILED",

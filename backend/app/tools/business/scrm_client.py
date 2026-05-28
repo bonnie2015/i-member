@@ -106,11 +106,14 @@ async def call_scrm_endpoint(
     except httpx.HTTPStatusError as exc:
         logger.warning(
             "[scrm_client] http error method=%s path=%s status=%s err=%s",
-            method, path,
+            method,
+            path,
             exc.response.status_code if exc.response else None,
             exc,
         )
         raise
     except Exception as exc:
-        logger.warning("[scrm_client] call failed method=%s path=%s err=%s", method, path, exc)
+        logger.warning(
+            "[scrm_client] call failed method=%s path=%s err=%s", method, path, exc
+        )
         raise

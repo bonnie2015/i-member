@@ -116,12 +116,16 @@ async def chat(
             elapsed_ms = int((time.perf_counter() - t0) * 1000)
 
             from app.llm.runtime import get_and_clear_request_tokens
+
             tokens = get_and_clear_request_tokens()
             logger.info(
                 "[chat] thread=%s latency_ms=%s llm_calls=%s prompt=%s completion=%s total=%s",
-                thread_id, elapsed_ms,
-                tokens["llm_calls"], tokens["prompt_tokens"],
-                tokens["completion_tokens"], tokens["total_tokens"],
+                thread_id,
+                elapsed_ms,
+                tokens["llm_calls"],
+                tokens["prompt_tokens"],
+                tokens["completion_tokens"],
+                tokens["total_tokens"],
             )
 
             response = ChatResponse(**result)

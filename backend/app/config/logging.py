@@ -10,7 +10,9 @@ from zoneinfo import ZoneInfo
 from app.config.config import settings
 
 _APP_TZ = ZoneInfo("Asia/Shanghai")
-LOG_FORMAT = "%(asctime)s | %(levelname)-5s | %(tid)s | %(rid)s | %(name)s | %(message)s"
+LOG_FORMAT = (
+    "%(asctime)s | %(levelname)-5s | %(tid)s | %(rid)s | %(name)s | %(message)s"
+)
 DEFAULT_LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
 
 log_thread_id: ContextVar[str] = ContextVar("log_thread_id", default="-")

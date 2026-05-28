@@ -1005,9 +1005,7 @@ async def search_products(
 
 
 @tool("get_product_detail", args_schema=GetOnitsukaProductDetailInput)
-async def get_product_detail(
-    product_id: int, color_id: int
-) -> Dict[str, Any]:
+async def get_product_detail(product_id: int, color_id: int) -> Dict[str, Any]:
     """读取商品详情；用于获取商品的尺码 / 库存 / 可选颜色。"""
     resolved_color_id = color_id or get_cached_default_color(product_id)
     if not resolved_color_id:
